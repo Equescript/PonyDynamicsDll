@@ -1,0 +1,16 @@
+[package]
+name = "PonyDynamicsDll"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "PonyDynamics" #生成dll的文件名
+crate-type = ["dylib"]
+
+[profile.release]
+lto = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nalgebra-glm = "*"
