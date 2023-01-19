@@ -3,7 +3,7 @@ UsePhysicsUnits!();
 use crate::utils::macros::IntEnum;
 use crate::math::{Mat3, Mat4};
 use crate::kinematics::{Pose, Transform, KinematicsState, Roatation};
-use crate::dynamics::{DynamicsState, IDsolver};
+use crate::dynamics::{EffectOfForce, MomentOfForce, DynamicsState, ForwardDynamicsSolver};
 use crate::gaits::GaitType;
 
 IntEnum!{
@@ -25,8 +25,9 @@ IntEnum!{
 }
 
 pub trait Controller {
-    fn calculate_motion(&self, leg_info: LegMotionInfo) -> Location;
     fn next(&self) -> Option<GaitType>;
+    fn period(&self) -> usize;
+    fn calculate_motion(&self, leg_info: LegMotionInfo) -> Location;
     fn motion_solvers(&mut self) -> &mut [&mut Box<dyn LegMotionSolver>; 4];
 }
 
@@ -38,7 +39,7 @@ pub trait LegMotionSolver {
 pub struct LegMotionInfo {
     pub leg: LegType,
     // leg_status: LegStatus,
-    pub is_static: bool,
+    pub is_stance: bool,
     pub start_time: usize,
     pub end_time: usize,
     pub time_length: usize,
@@ -51,7 +52,7 @@ pub struct LegMotionInfo {
 impl LegMotionInfo {
     fn calculate_motion(&mut self, motion_solver: &mut Box<dyn LegMotionSolver>, frame_current: usize) -> Pose {
         self.factor = (frame_current - self.start_time) as f64 / self.time_length as f64;
-        if self.is_static {
+        if self.is_stance {
             self.start_pose
         } else {
             motion_solver.solve(self)
@@ -61,19 +62,7 @@ impl LegMotionInfo {
 
 pub struct LegKinematics {
     pub leg_type: LegType,
-    // pub root_location: Location,
     pub leg_motion_info: LegMotionInfo,
-    pub hoove: Pose,
-}
-
-pub struct LegDynamics {
-    pub leg_type: LegType,
-    pub forces: Vec<Force>,
-}
-
-pub struct LegRest {
-    pub leg_type: LegType,
-    pub root_location: Location,
     pub hoove: Pose,
 }
 
@@ -108,16 +97,47 @@ impl ArmatureKinematics {
     }
 }
 
+pub struct LegDynamics {
+    pub leg_type: LegType,
+    pub forces: Vec<Force>,
+    pub joint_force: MomentOfForce,
+}
+
+pub trait IDsolver {
+    fn solve(&self, armature_dynamics: &mut ArmatureDynamics, effect_of_force: EffectOfForce) -> Result<(), EffectOfForce>;
+}
+
 pub struct ArmatureDynamics {
     pub head: DynamicsState,
-    pub center: DynamicsState,
-    // pub legs: [LegDynamics; 4],
+    pub center: DynamicsState, // center.forces[0] is gravity
+    pub legs: [LegDynamics; 4],
 }
 
 impl ArmatureDynamics {
-    pub fn solve(&mut self, armature_kinematics: &ArmatureKinematics, ID_solver: &Box<dyn IDsolver>, accel: Accel, angular_accel: AngularAccel) {
-
+    /* pub fn new() -> Self {
+        Self {
+            head: DynamicsState::initialize(mass, rotational_inertia),
+            center: DynamicsState::initialize(mass, rotational_inertia),
+            legs: ()
+        }
+    } */
+    pub fn solve(&mut self, armature_kinematics: &ArmatureKinematics, ID_solver: &Box<dyn IDsolver>, g_accel: Accel, target_effect: EffectOfForce) -> Result<(), EffectOfForce> {
+        self.legs[0].joint_force.arm = armature_kinematics.legs[0].hoove.location - armature_kinematics.center.location;
+        self.legs[1].joint_force.arm = armature_kinematics.legs[1].hoove.location - armature_kinematics.center.location;
+        self.legs[2].joint_force.arm = armature_kinematics.legs[2].hoove.location - armature_kinematics.center.location;
+        self.legs[3].joint_force.arm = armature_kinematics.legs[3].hoove.location - armature_kinematics.center.location;
+        // TODO: Head
+        self.center.forces[0].force = g_accel * self.center.mass;
+        let current_effect = ForwardDynamicsSolver(&self.center);
+        // target_effect = self_effect + current_effect;
+        ID_solver.solve(self, target_effect - current_effect)
     }
+}
+
+pub struct LegRest {
+    pub leg_type: LegType,
+    pub root_location: Location,
+    pub hoove: Pose,
 }
 
 pub struct ArmatureRest {

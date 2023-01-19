@@ -5,7 +5,7 @@ use crate::units::UsePhysicsUnits;
 UsePhysicsUnits!();
 use crate::predictor::{Planner, Pridictions};
 use crate::armature::Controller;
-use crate::dynamics::IDsolver;
+use crate::armature::IDsolver;
 
 IntEnum!{
     pub enum GaitType {

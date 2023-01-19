@@ -7,6 +7,7 @@ use crate::utils::macros::ImplIndex;
 use crate::units::UsePhysicsUnits;
 UsePhysicsUnits!();
 use crate::kinematics::{KinematicsState, ForwardKinematicsSolver};
+use crate::gaits::{GaitType, Planners};
 
 // pub struct Pridiction {
     // pub center: KinematicsState,
@@ -19,7 +20,16 @@ use crate::kinematics::{KinematicsState, ForwardKinematicsSolver};
 //     }
 // }
 
-type Pridiction = KinematicsState;
+pub struct Pridiction {
+    pub center: KinematicsState,
+    pub planner: GaitType,
+}
+
+impl Pridiction {
+    pub fn new() -> Self {
+        Pridiction { center: KinematicsState::new(), planner: GaitType::Stance }
+    }
+}
 
 pub struct Pridictions {
     length: usize,
@@ -38,7 +48,7 @@ impl Pridictions {
     pub fn pop_front(&mut self) -> Option<Pridiction> {
         self.data.pop_front()
     }
-    pub fn refresh(&mut self, k: KinematicsState) {
+    pub fn refresh(&mut self, k: KinematicsState, planner: GaitType) {
         /* self.data.pop_front();
         if self.len() != 0 {
             self.data[0] = k;
@@ -46,7 +56,7 @@ impl Pridictions {
             self.data.push_back(k)
         } */
         self.data.clear();
-        self.data.push_back(k)
+        self.data.push_back(Pridiction { center: k, planner });
     }
     pub fn len(&self) -> usize {
         self.data.len()
@@ -60,19 +70,22 @@ impl Pridictions {
     fn set_pridiction_by_frame_offset(&mut self, targets: &Targets, planner: &mut Box<dyn Planner>, frame_current: usize, frame_offset: usize) {
         let t0 = &targets[frame_current+frame_offset].center;
         // let p1 = &mut ;
-        self[frame_offset] = ForwardKinematicsSolver(&self[frame_offset.saturating_sub(1)]);
+        self[frame_offset].center = ForwardKinematicsSolver(&self[frame_offset.saturating_sub(1)].center);
         let p0 = &mut self[frame_offset];
-        p0.accel = planner.accel(
-            t0.location - p0.location,
-            t0.velocity - p0.velocity,
+        p0.center.accel = planner.accel(
+            t0.location - p0.center.location,
+            t0.velocity - p0.center.velocity,
             t0.accel
         );
-        p0.angular_accel = planner.angular_accel(
+        p0.center.angular_accel = planner.angular_accel(
             // t0.basis_matrix = rotation_matrix * p0.basis_matrix
-            math::angle_of_rotation_matrix(&(t0.basis_matrix * glm::inverse(&p0.basis_matrix))),
-            t0.angular_velocity - p0.angular_velocity,
+            math::angle_of_rotation_matrix(&(t0.basis_matrix * glm::inverse(&p0.center.basis_matrix))),
+            t0.angular_velocity - p0.center.angular_velocity,
             t0.angular_accel
         );
+    }
+    pub fn set_pridiction_to(&mut self, index: usize, targets: &Targets, planners: &mut Planners, frame_current: usize) {
+        todo!()
     }
     pub fn get_pridiction(&mut self, index: usize, targets: &Targets, planner: &mut Box<dyn Planner>, frame_current: usize) -> &Pridiction {
         let frame_offset = index;
@@ -101,6 +114,9 @@ pub trait Planner {
     fn angular_accel(&mut self, rotation: Angle, angular_velocity_offset: AngularVelocity, target_angular_accel: AngularAccel) -> AngularAccel {
         let angular_velocity_correction: AngularVelocity = self.angular_velocity_correction(rotation);
         self.angular_accel_correction(angular_velocity_correction + angular_velocity_offset) + target_angular_accel
+    }
+    fn next(&self) -> GaitType {
+        todo!()
     }
 }
 
