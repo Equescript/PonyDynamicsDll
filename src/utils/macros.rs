@@ -76,3 +76,21 @@ macro_rules! IntEnum {
 }
 
 pub(crate) use IntEnum;
+
+macro_rules! ImplIndex {
+    ($t1:ty, $t2:ty) => {
+        impl std::ops::Index<usize> for $t1 {
+            type Output = $t2;
+            fn index(&self, index: usize) -> &Self::Output {
+                self.data.get(index).unwrap()
+            }
+        }
+        impl std::ops::IndexMut<usize> for $t1 {
+            fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+                self.data.get_mut(index).unwrap()
+            }
+        }
+    };
+}
+
+pub(crate) use ImplIndex;

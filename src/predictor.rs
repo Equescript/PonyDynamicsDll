@@ -3,6 +3,7 @@ use std::ops::{Index, IndexMut};
 use crate::math;
 use crate::math::{Mat3};
 use crate::targets::Targets;
+use crate::utils::macros::ImplIndex;
 use crate::units::UsePhysicsUnits;
 UsePhysicsUnits!();
 use crate::kinematics::{KinematicsState, ForwardKinematicsSolver};
@@ -86,17 +87,7 @@ impl Pridictions {
     }
 }
 
-impl Index<usize> for Pridictions {
-    type Output = Pridiction;
-    fn index(&self, index: usize) -> &Self::Output {
-        self.get(index).unwrap()
-    }
-}
-impl IndexMut<usize> for Pridictions {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        self.get_mut(index).unwrap()
-    }
-}
+ImplIndex!(Pridictions, Pridiction);
 
 pub trait Planner {
     fn velocity_correction(&mut self, location_offset: Location) -> Velocity;

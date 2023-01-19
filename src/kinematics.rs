@@ -114,3 +114,13 @@ pub fn ForwardKinematicsSolver(k: &KinematicsState) -> KinematicsState {
         angular_accel: AngularAccel::zeros()
     }
 }
+
+pub fn InverseKinematicsSolver(k1: &mut KinematicsState, k2: &mut KinematicsState, k3: &mut KinematicsState) {
+    k2.velocity = k3.location - k2.location;
+    k1.accel = k2.velocity - k1.velocity;
+
+    // k3.basis_matrix = rotation_matrix * k2.basis_matrix;
+    let rotation_matrix: Mat3 = k3.basis_matrix * glm::inverse(&k2.basis_matrix);
+    k2.angular_velocity = math::angle_of_rotation_matrix(&rotation_matrix);
+    k1.angular_accel = k2.angular_velocity - k1.angular_velocity;
+}

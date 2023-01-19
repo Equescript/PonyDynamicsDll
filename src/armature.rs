@@ -3,7 +3,7 @@ UsePhysicsUnits!();
 use crate::utils::macros::IntEnum;
 use crate::math::{Mat3, Mat4};
 use crate::kinematics::{Pose, Transform, KinematicsState, Roatation};
-use crate::dynamics::DynamicsState;
+use crate::dynamics::{DynamicsState, IDsolver};
 use crate::gaits::GaitType;
 
 IntEnum!{
@@ -115,7 +115,9 @@ pub struct ArmatureDynamics {
 }
 
 impl ArmatureDynamics {
-    pub fn solve(&mut self, armature_kinematics: &ArmatureKinematics, accel: Accel, angular_accel: AngularAccel) {}
+    pub fn solve(&mut self, armature_kinematics: &ArmatureKinematics, ID_solver: &Box<dyn IDsolver>, accel: Accel, angular_accel: AngularAccel) {
+
+    }
 }
 
 pub struct ArmatureRest {

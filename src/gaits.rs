@@ -1,10 +1,11 @@
 use crate::kinematics::KinematicsState;
 use crate::targets::Targets;
+use crate::utils::macros::{IntEnum, ImplIndex};
 use crate::units::UsePhysicsUnits;
 UsePhysicsUnits!();
 use crate::predictor::{Planner, Pridictions};
-use crate::utils::macros::IntEnum;
 use crate::armature::Controller;
+use crate::dynamics::IDsolver;
 
 IntEnum!{
     pub enum GaitType {
@@ -81,23 +82,44 @@ macro_rules! GaitsUnwarp {
     controller: Box<U>,
 } */
 
-pub struct GaitInfo {
-    pub gait_type: GaitType,
-    // pub gaits: [Gaits; 14],
-    planners: [Box<dyn Planner>; 14],
-    controllers: [Box<dyn Controller>; 14],
+pub struct Planners {
+    data: [Box<dyn Planner>; 14],
 }
 
-impl GaitInfo {
+impl Planners {
     // 该函数会决定对于预测器应该使用什么样的规划器
-    pub fn planner(&self, targets: &Targets, results: &Vec<KinematicsState>, frame_current: usize) -> &mut Box<dyn Planner> {
+    pub fn get_planner_by_velocity(&mut self, targets: &Targets, results: &Vec<KinematicsState>, frame_current: usize) -> &mut Box<dyn Planner> {
         // GaitsUnwarp!(&self.gaits[self.gait_type as usize])
         // self.planners[self.gait_type as usize];
         todo!()
     }
-    pub fn controller(&mut self) -> &mut Box<dyn Controller> {
-        &mut self.controllers[self.gait_type as usize]
-    }
+}
+
+ImplIndex!(Planners, Box<dyn Planner>);
+
+pub struct Controllers {
+    data: [Box<dyn Controller>; 14],
+}
+
+ImplIndex!(Controllers, Box<dyn Controller>);
+
+pub struct IDsolvers {
+    data: [Box<dyn IDsolver>; 14],
+}
+
+ImplIndex!(IDsolvers, Box<dyn IDsolver>);
+
+pub struct GaitInfo {
+    pub gait_type: GaitType,
+    // pub gaits: [Gaits; 14],
+    // planners: [Box<dyn Planner>; 14],
+    pub planners: Planners,
+    pub controllers: Controllers,
+    pub IDsolvers: IDsolvers,
+}
+
+impl GaitInfo {
+
 }
 
 

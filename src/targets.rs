@@ -2,7 +2,7 @@ use std::ops::{Index, IndexMut};
 use crate::units::UsePhysicsUnits;
 UsePhysicsUnits!();
 use crate::utils::macros::ImplCopy;
-use crate::kinematics::KinematicsState;
+use crate::kinematics::{KinematicsState, InverseKinematicsSolver};
 use crate::math;
 use crate::math::{Vec3, Mat3};
 
@@ -103,8 +103,8 @@ pub fn set_target_by_frame(targets: &mut Targets, location: Location, _direction
     // rotation_matrix = basis_matrix * local_matrix_inverse
     // targets[i_2].center.rotation_matrix = targets[i_2].center.basis_matrix * global_data.armature.local_matrix_inverse;
 
-    // i_2.basis_matrix = i_3.basis_matrix * delta_rotation_matrix
-    let delta_rotation_matrix: Mat3 = glm::inverse(&targets[i_3].center.basis_matrix) * targets[i_2].center.basis_matrix;
+    // i_2.basis_matrix = delta_rotation_matrix * i_3.basis_matrix
+    let delta_rotation_matrix: Mat3 =  targets[i_2].center.basis_matrix * glm::inverse(&targets[i_3].center.basis_matrix);
     targets[i_3].center.angular_velocity = math::angle_of_rotation_matrix(&delta_rotation_matrix);
     targets[i_4].center.angular_accel = targets[i_3].center.angular_velocity - targets[i_4].center.angular_velocity;
 
@@ -112,5 +112,6 @@ pub fn set_target_by_frame(targets: &mut Targets, location: Location, _direction
     targets[i_2].center.location = targets[i_2].projection.location - targets[i_2].virtual_g_normal * center_height;
     targets[i_3].center.velocity = targets[i_2].center.location - targets[i_3].center.location;
     targets[i_4].center.accel = targets[i_3].center.velocity - targets[i_4].center.velocity;
+    // InverseKinematicsSolver(&mut targets[i_4].center, &mut targets[i_3].center, &mut targets[i_2].center);
 }
 

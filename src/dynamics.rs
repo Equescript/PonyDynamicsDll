@@ -43,4 +43,9 @@ pub fn ForwardDynamicsSolver(d: &DynamicsState) -> (Accel, AngularAccel) {
     (joint_force / d.mass, joint_torque / d.rotational_inertia)
 }
 
-pub fn InverseDynamicsSolver(d: &mut DynamicsState, accel: Accel, angular_accel: AngularAccel) {}
+// InverseDynamicsSolver
+pub trait IDsolver {
+    fn solve(&self, forces: &mut Vec<(Force, Location)>, accel: Accel, angular_accel: AngularAccel);
+}
+
+// pub fn InverseDynamicsSolver(d: &mut DynamicsState, accel: Accel, angular_accel: AngularAccel) {}

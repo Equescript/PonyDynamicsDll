@@ -30,12 +30,12 @@ struct Context {
 impl Context {
     fn calculate(&mut self) {
 
-        let planner = self.gait_info.planner(&self.targets, &self.results, self.frame_current);
+        let planner = self.gait_info.planners.get_planner_by_velocity(&self.targets, &self.results, self.frame_current);
         self.pridictions.get_pridiction(0, &self.targets, planner, self.frame_current);
 
         self.pridictions.pop_front();
 
-        let controller = self.gait_info.controller();
+        let controller = &mut self.gait_info.controllers[self.gait_info.gait_type as usize];
         self.armature_kinematics.solve(None, &self.armature_rest, controller.motion_solvers(), self.frame_current);
 
         // dynamics
