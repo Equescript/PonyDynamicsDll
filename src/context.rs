@@ -17,7 +17,7 @@ struct Output {
 
 struct Context {
     targets: Targets,
-    results: Vec<KinematicsState>,
+    results: Vec<ArmatureKinematics>,
     pridictions: Pridictions,
     match_pridiction: bool,
     tick: Time,
@@ -30,32 +30,32 @@ struct Context {
 }
 
 impl Context {
-    fn calculate(&mut self) {
+    fn calculate(&mut self, frame_current: usize) {
+        self.frame_current = frame_current;
+        self.gait_info.gait_type = self.pridictions[0].planner_type;
 
-        let planner = self.gait_info.planners.get_planner_by_velocity(&self.targets, &self.results, self.frame_current);
+        // let planner = &mut self.gait_info.planners[self.gait_info.gait_type as usize];
         // self.pridictions.get_pridiction(1, &self.targets, planner, self.frame_current);
         // self.pridictions.set_pridiction_to(index, targets, planners, frame_current)
 
-        self.pridictions.pop_front();
 
         let controller = &mut self.gait_info.controllers[self.gait_info.gait_type as usize];
 
         if self.match_pridiction {
-            self.armature_kinematics.center = self.pridictions.get_pridiction(0, &self.targets, planner, self.frame_current).center;
+            let pridiction = self.pridictions[0].center;
+            self.armature_kinematics.solve(Some(pridiction), &self.armature_rest, controller.motion_solvers(), self.frame_current);
+            // TODO: A function to set pridiction[0]
         } else {
             self.armature_kinematics.solve(None, &self.armature_rest, controller.motion_solvers(), self.frame_current);
-            self.pridictions.refresh(self.armature_kinematics.center, self.gait_info.gait_type);
+            self.pridictions.refresh(self.armature_kinematics.center, (&self.targets, &self.results, &mut self.gait_info.planners, self.frame_current));
+            // self.pridictions[0] is ready
         }
 
-        let pridiction = self.pridictions.get_pridiction(1, &self.targets, planner, self.frame_current);
         let ID_solver = &mut self.gait_info.IDsolvers[self.gait_info.gait_type as usize];
 
         match self.armature_dynamics.solve(
             &self.armature_kinematics, ID_solver, self.targets[self.frame_current].g_accel,
-            EffectOfForce {
-                accel: pridiction.center.accel,
-                angular_accel: pridiction.center.angular_accel
-            }
+            self.pridictions[0].center.effect_of_force()
         ) {
             Ok(_) => { self.match_pridiction = true; },
             Err(e) => {
@@ -64,11 +64,14 @@ impl Context {
                 self.armature_kinematics.center.angular_accel = e.angular_accel;
             },
         }
-        match controller.next() {
+        self.pridictions.pop_front((&self.targets, &self.results, &mut self.gait_info.planners, self.frame_current));
+        // if self.match_pridiction then self.pridictions[0] is ready
+
+        /* match controller.next() {
             Some(t) => { self.gait_info.gait_type = t; },
             None => {},
-        }
-        self.calculate_output()
+        } */
+        self.results.push(self.armature_kinematics);
     }
     fn calculate_output(&mut self) {
         self.output.root = math::make_transformation_matrix(self.armature_kinematics.root.location - self.armature_rest.root.location, self.armature_kinematics.center_rotation);

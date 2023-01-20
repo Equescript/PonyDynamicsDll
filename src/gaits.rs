@@ -1,10 +1,10 @@
 use crate::kinematics::KinematicsState;
 use crate::targets::Targets;
-use crate::utils::macros::{IntEnum, ImplIndex};
+use crate::utils::macros::{ImplCopy, IntEnum, ImplIndex};
 use crate::units::UsePhysicsUnits;
 UsePhysicsUnits!();
 use crate::predictor::{Planner, Pridictions};
-use crate::armature::Controller;
+use crate::armature::{Controller, ArmatureKinematics};
 use crate::armature::IDsolver;
 
 IntEnum!{
@@ -25,24 +25,27 @@ IntEnum!{
         TrotToWalk,
     }
 }
-/* pub enum Gaits {
-    Stance(Stance),
-    Walk(Walk),
-    Trot(Trot),
-    Gallop(Gallop),
-    InitiateWalk(InitiateWalk),
-    InitiateTrot(InitiateTrot),
-    InitiateGallop(InitiateGallop),
-    TerminateWalk(TerminateWalk),
-    TerminateTrot(TerminateTrot),
-    TerminateGallop(TerminateGallop),
-    WalkToTrot(WalkToTrot),
-    TrotToGallop(TrotToGallop),
-    GallopToTrot(GallopToTrot),
-    TrotToWalk(TrotToWalk),
+
+ImplCopy!{
+    pub enum GaitsPridiction {
+        Stance(StancePridiction),
+        Walk(WalkPridiction),
+        // Trot(TrotPridiction),
+        // Gallop(GallopPridiction),
+        InitiateWalk(InitiateWalkPridiction),
+        // InitiateTrot(InitiateTrotPridiction),
+        // InitiateGallop(InitiateGallopPridiction),
+        TerminateWalk(TerminateWalkPridiction),
+        // TerminateTrot(TerminateTrotPridiction),
+        // TerminateGallop(TerminateGallopPridiction),
+        // WalkToTrot(WalkToTrotPridiction),
+        // TrotToGallop(TrotToGallopPridiction),
+        // GallopToTrot(GallopToTrotPridiction),
+        // TrotToWalk(TrotToWalkPridiction),
+    }
 }
 
-macro_rules! GaitsUnwarp {
+/* macro_rules! GaitsUnwarp {
     ($gait:expr) => {
         {
             use crate::gaits::Gaits;
@@ -88,7 +91,7 @@ pub struct Planners {
 
 impl Planners {
     // 该函数会决定对于预测器应该使用什么样的规划器
-    pub fn get_planner_by_velocity(&mut self, targets: &Targets, results: &Vec<KinematicsState>, frame_current: usize) -> &mut Box<dyn Planner> {
+    pub fn get_planner_by_velocity(&mut self, targets: &Targets, results: &Vec<ArmatureKinematics>, frame_current: usize) -> &mut Box<dyn Planner> {
         // GaitsUnwarp!(&self.gaits[self.gait_type as usize])
         // self.planners[self.gait_type as usize];
         todo!()
@@ -123,14 +126,14 @@ impl GaitInfo {
 }
 
 
-pub struct InitiateWalk {
+pub struct InitiateWalkPlanner {
     velocity_correction_factor: f64,
     accel_correction_factor: f64,
     angular_velocity_correction_factor: f64,
     angular_accel_correction_factor: f64,
 }
 
-impl Planner for InitiateWalk {
+/* impl Planner for InitiateWalkPlanner {
     fn velocity_correction(&mut self, location_offset: Location) -> Velocity {
         location_offset * self.velocity_correction_factor
     }
@@ -143,20 +146,20 @@ impl Planner for InitiateWalk {
     fn angular_accel_correction(&mut self, angular_velocity_offset: AngularVelocity) -> AngularAccel {
         angular_velocity_offset * self.angular_accel_correction_factor
     }
-}
+} */
 
 // impl Controller for InitiateWalk {
 
 // }
 
-pub struct Walk {
+pub struct WalkPlanner {
     velocity_correction_factor: f64,
     accel_correction_factor: f64,
     angular_velocity_correction_factor: f64,
     angular_accel_correction_factor: f64,
 }
 
-impl Planner for Walk {
+/* impl Planner for WalkPlanner {
     fn velocity_correction(&mut self, location_offset: Location) -> Velocity {
         location_offset * self.velocity_correction_factor
     }
@@ -170,7 +173,7 @@ impl Planner for Walk {
         angular_velocity_offset * self.angular_accel_correction_factor
     }
 }
-
+ */
 // impl Controller for Walk {
 
 // }
@@ -182,7 +185,7 @@ macro_rules! GaitToDo {
 
         }
 
-        impl Planner for $name1 {
+        /* impl Planner for $name1 {
             fn velocity_correction(&mut self, location_offset: Location) -> Velocity {
                 todo!()
             }
@@ -195,7 +198,7 @@ macro_rules! GaitToDo {
             fn angular_accel_correction(&mut self, angular_velocity_offset: AngularVelocity) -> AngularAccel {
                 todo!()
             }
-        }
+        } */
 
         pub struct $name2 {
 
@@ -219,3 +222,18 @@ GaitToDo!(WalkToTrotPlanner, WalkToTrotController);
 GaitToDo!(TrotToGallopPlanner, TrotToGallopController);
 GaitToDo!(GallopToTrotPlanner, GallopToTrotController);
 GaitToDo!(TrotToWalkPlanner, TrotToWalkController);
+
+ImplCopy!{ pub struct StancePridiction {} }
+ImplCopy!{ pub struct WalkPridiction {} }
+pub struct TrotPridiction {}
+pub struct GallopPridiction {}
+ImplCopy!{ pub struct InitiateWalkPridiction {} }
+pub struct InitiateTrotPridiction {}
+pub struct InitiateGallopPridiction {}
+ImplCopy!{ pub struct TerminateWalkPridiction {} }
+pub struct TerminateTrotPridiction {}
+pub struct TerminateGallopPridiction {}
+pub struct WalkToTrotPridiction {}
+pub struct TrotToGallopPridiction {}
+pub struct GallopToTrotPridiction {}
+pub struct TrotToWalkPridiction {}

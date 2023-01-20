@@ -3,7 +3,7 @@ UsePhysicsUnits!();
 use crate::math;
 use crate::math::{Mat3, Mat4, Qua};
 use crate::utils::macros::ImplCopy;
-use crate::dynamics::DynamicsState;
+use crate::dynamics::{DynamicsState, EffectOfForce};
 
 ImplCopy!{
     pub struct Pose {
@@ -13,6 +13,9 @@ ImplCopy!{
 }
 
 impl Pose {
+    pub fn new() -> Self {
+        Self { location: Location::zeros(), basis_matrix: Mat3::zeros() }
+    }
     pub fn transformation_matrix_from(&self, pose: &Pose) -> Mat4 {
         math::make_transformation_matrix(self.location - pose.location, self.basis_matrix * glm::inverse(&pose.basis_matrix))
     }
@@ -44,6 +47,9 @@ ImplCopy!{
 }
 
 impl Transform {
+    pub fn new() -> Self {
+        Self { location: Location::zeros(), rotation: Roatation::Matrix(Mat3::zeros()) }
+    }
     pub fn transformation_matrix(&self) -> Mat4 {
         match self.rotation {
             Roatation::Angle(t) => math::make_transformation_matrix(self.location, math::rotation_mat3(t)),
@@ -85,6 +91,9 @@ impl KinematicsState {
             angular_velocity: AngularVelocity::zeros(),
             angular_accel: AngularAccel::zeros(),
         }
+    }
+    pub fn effect_of_force(&self) -> EffectOfForce {
+        EffectOfForce { accel: self.accel, angular_accel: self.angular_accel }
     }
     pub fn solve(&mut self) {
         self.location = self.location + self.velocity;
