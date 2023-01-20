@@ -40,11 +40,12 @@ impl Target {
 
 pub struct Targets {
     data: Vec<Target>,
+    pub centripetal_force_factor: f64,
 }
 
 impl Targets {
     pub fn new() -> Self {
-        Targets { data: Vec::new() }
+        Targets { data: Vec::new(), centripetal_force_factor: 0.0 }
     }
     pub fn initialize(&mut self, size: usize) {
         self.data = Vec::with_capacity(size + 10);

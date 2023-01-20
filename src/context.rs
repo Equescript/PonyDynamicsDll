@@ -9,24 +9,24 @@ use crate::dynamics::EffectOfForce;
 use crate::armature::{ArmatureKinematics, ArmatureDynamics, ArmatureRest};
 use crate::gaits::GaitInfo;
 
-struct Output {
-    root: Mat4,
-    head: Mat4,
-    legs: [Mat4; 4],
+pub struct Output {
+    pub root: Mat4,
+    pub head: Mat4,
+    pub legs: [Mat4; 4],
 }
 
-struct Context {
-    targets: Targets,
-    results: Vec<ArmatureKinematics>,
-    pridictions: Pridictions,
-    match_pridiction: bool,
-    tick: Time,
-    frame_current: usize,
-    armature_rest: ArmatureRest, // const
-    armature_kinematics: ArmatureKinematics,
-    armature_dynamics: ArmatureDynamics,
-    output: Output,
-    gait_info: GaitInfo,
+pub struct Context {
+    pub targets: Targets,
+    pub results: Vec<ArmatureKinematics>,
+    pub pridictions: Pridictions,
+    pub match_pridiction: bool,
+    pub tick: Time, // s/f
+    pub frame_current: usize,
+    pub armature_rest: ArmatureRest, // const
+    pub armature_kinematics: ArmatureKinematics,
+    pub armature_dynamics: ArmatureDynamics,
+    pub output: Output,
+    pub gait_info: GaitInfo,
 }
 
 impl Context {
