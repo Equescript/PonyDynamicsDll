@@ -31,6 +31,23 @@ impl Pose {
             rotation: Roatation::Matrix(self.basis_matrix * glm::inverse(&pose.basis_matrix))
         }
     }
+    pub fn transform(p: &Pose, t: &Transform) -> Pose {
+        Pose {
+            location: p.location + t.location,
+            basis_matrix: match t.rotation {
+                Roatation::Angle(a) => math::rotation_mat3(a),
+                Roatation::Matrix(m) => m,
+            } * p.basis_matrix
+        }
+    }
+    pub fn transformed_by(&mut self, t: &Transform) {
+        self.location = self.location + t.location;
+        self.basis_matrix = match t.rotation {
+            Roatation::Angle(a) => math::rotation_mat3(a),
+            Roatation::Matrix(m) => m,
+        } * self.basis_matrix
+        // TODO: Maybe normalize?
+    }
 }
 ImplCopy!{
     pub enum Roatation {

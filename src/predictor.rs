@@ -8,7 +8,7 @@ use crate::units::UsePhysicsUnits;
 UsePhysicsUnits!();
 use crate::kinematics::{KinematicsState, ForwardKinematicsSolver};
 use crate::dynamics::EffectOfForce;
-use crate::gaits::{GaitsPridiction, GaitType, Planners, StancePridiction};
+use crate::gaits::{GaitPridiction, GaitType, Planners, StancePridiction};
 use crate::armature::ArmatureKinematics;
 
 // pub struct Pridiction {
@@ -21,18 +21,18 @@ use crate::armature::ArmatureKinematics;
 //         Self { center: KinematicsState::new(), projection: Location::zeros() }
 //     }
 // }
-ImplCopy!{
-    pub struct Pridiction {
-        pub center: KinematicsState,
-        // pub armature_kinematics: ArmatureKinematics,
-        pub gait_data: GaitsPridiction,
-        pub planner_type: GaitType,
-    }
+#[derive(Clone, Copy)]
+pub struct Pridiction {
+    pub center: KinematicsState,
+    // pub armature_kinematics: ArmatureKinematics,
+    pub gait_data: GaitPridiction,
+    pub planner_type: GaitType,
 }
+
 
 impl Pridiction {
     pub fn new() -> Self {
-        Pridiction { center: KinematicsState::new(), gait_data: GaitsPridiction::Stance(StancePridiction {}), planner_type: GaitType::Stance }
+        Pridiction { center: KinematicsState::new(), gait_data: GaitPridiction::Stance(StancePridiction {}), planner_type: GaitType::Stance }
     }
 }
 
@@ -82,27 +82,25 @@ impl Pridictions {
         targets: &Targets, results: &Vec<ArmatureKinematics>,
         planners: &mut Planners, frame_current: usize
     ) -> Result<(), ()> {
-        let length = self.len();
-        if length > index {
+        let last = self.len() - 1;
+        if last >= index {
             return Ok(());
         }
 
-        let mut planner = &mut planners[self[length - 1].planner_type as usize];
+        let mut planner = &mut planners[self[last].planner_type as usize];
 
-        for i in length..=index {
-            planner.calculate(targets, results, self, frame_current, i)?;
+        for i in last..index {
+            planner.calculate_next_of(targets, results, self, frame_current, i)?;
             let next_type = planner.next();
             planner = &mut planners[next_type as usize];
         }
         Ok(())
     }
-    pub fn get_pridiction(&mut self, index: usize,
-        targets: &Targets, results: &Vec<ArmatureKinematics>, pridictions: &mut Pridictions,
-        planners: &mut Planners, frame_current: usize
+    pub fn get_pridiction(&mut self, index: usize, (targets,  results,                  planners,      frame_current):
+                                                   (&Targets, &Vec<ArmatureKinematics>, &mut Planners, usize)
     ) -> Result<&Pridiction, ()> {
-        let frame_offset = index;
         let length = self.len();
-        if length <= frame_offset {
+        if length <= index {
             self.calculate_pridiction_of(index, targets, results, planners, frame_current)?;
         }
         match self.get(index) {
@@ -115,7 +113,7 @@ impl Pridictions {
 ImplIndex!(Pridictions, Pridiction);
 
 pub trait Planner {
-    fn calculate(&mut self, targets: &Targets, results: &Vec<ArmatureKinematics>, pridictions: &mut Pridictions, frame_current: usize, future_offset: usize) -> Result<(), ()> {
+    fn calculate_next_of(&mut self, targets: &Targets, results: &Vec<ArmatureKinematics>, pridictions: &mut Pridictions, frame_current: usize, frame_offset: usize) -> Result<(), ()> {
         todo!()
     }
     fn next(&self) -> GaitType {

@@ -4,9 +4,12 @@ use crate::utils::macros::{ImplCopy, IntEnum};
 use crate::math::{Mat3, Mat4};
 use crate::kinematics::{Pose, Transform, KinematicsState, Roatation};
 use crate::dynamics::{EffectOfForce, MomentOfForce, DynamicsState, ForwardDynamicsSolver};
-use crate::gaits::GaitType;
+use crate::gaits::{GaitType, GaitLegInfo, Planners};
+use crate::predictor::{Pridictions};
+use crate::targets::Targets;
 
 IntEnum!{
+    #[derive(PartialEq, Eq)]
     pub enum LegType {
         Foreleg_L = 0,
         Foreleg_R,
@@ -15,51 +18,71 @@ IntEnum!{
     }
 }
 
-IntEnum!{
-    pub enum LegStatus {
-        Stance = 0,
-        InitialSwing,
-        Swing,
-        Contact,
+/* impl std::cmp::PartialEq for LegType {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+
+        }
     }
-}
+} */
 
 pub trait Controller {
     // fn period(&self) -> usize;
     // fn calculate_motion(&self, leg_info: LegMotionInfo) -> Location;
-    fn motion_solvers(&mut self) -> &mut [&mut Box<dyn LegMotionSolver>; 4];
+    // fn motion_solvers(&mut self) -> &mut [&mut Box<dyn LegMotionSolver>; 4];
+    fn solve_leg(&mut self, leg_info: &mut LegMotionInfo, pridictions: &mut Pridictions,
+        (targets,  results,                  planners,      frame_current):
+        (&Targets, &Vec<ArmatureKinematics>, &mut Planners, usize)) -> Result<Pose, ()> {
+            Err(())
+        }
 }
 
 pub trait LegMotionSolver {
     // allow the leg_info to influence the solver
-    fn solve(&mut self, leg_info: &LegMotionInfo) -> Pose;
+    fn solve(&mut self, leg_info: &LegMotionInfo) -> Result<Pose, ()>;
 }
-ImplCopy!{
-    pub struct LegMotionInfo {
-        pub leg: LegType,
-        // leg_status: LegStatus,
-        pub is_stance: bool,
-        pub start_time: usize,
-        pub end_time: usize,
-        pub time_length: usize,
-        pub start_pose: Pose,
-        pub target_pose: Pose,
-        pub transform: Transform,
-        pub factor: f64, // from 0 to 1, describe the moving process of hoove.
-    }
+
+#[derive(Clone, Copy)]
+pub struct LegMotionInfo {
+    pub gait_data: GaitLegInfo,
+    pub leg_type: LegType,
+    // leg_status: LegStatus,
+    pub is_stance: bool,
+    pub start_time: usize,
+    pub end_time: usize,
+    pub time_length: usize,
+    pub start_pose: Pose,
+    pub target_pose: Pose,
+    pub transform: Transform,
+    pub factor: f64, // from 0 to 1, describe the moving process of hoove.
 }
+
 
 impl LegMotionInfo {
     pub fn new() -> Self {
-        Self { leg: LegType::Foreleg_L, is_stance: true, start_time: 0, end_time: 0, time_length: 0, start_pose: Pose::new(), target_pose: Pose::new(), transform: Transform::new(), factor: 0.0 }
-    }
-    fn calculate_motion(&mut self, motion_solver: &mut Box<dyn LegMotionSolver>, frame_current: usize) -> Pose {
-        self.factor = (frame_current - self.start_time) as f64 / self.time_length as f64;
-        if self.is_stance {
-            self.start_pose
-        } else {
-            motion_solver.solve(self)
+        Self {
+            gait_data: GaitLegInfo::new(),
+            leg_type: LegType::Foreleg_L,
+            is_stance: true,
+            start_time: 0,
+            end_time: 0,
+            time_length: 0,
+            start_pose: Pose::new(),
+            target_pose: Pose::new(),
+            transform: Transform::new(),
+            factor: 0.0
         }
+    }
+    fn calculate_motion(&mut self, controller: &mut Box<dyn Controller>,/* motion_solver: &mut Box<dyn LegMotionSolver>, */ pridictions: &mut Pridictions,
+        (targets,  results,                  planners,      frame_current):
+        (&Targets, &Vec<ArmatureKinematics>, &mut Planners, usize)) -> Result<Pose, ()> {
+        self.factor = (frame_current - self.start_time) as f64 / self.time_length as f64;
+        // if self.is_stance {
+            // self.start_pose
+        // } else {
+            // motion_solver.solve(self)
+        // }
+        controller.solve_leg(self, pridictions, (targets, results, planners, frame_current))
     }
 }
 ImplCopy!{
@@ -97,7 +120,10 @@ impl ArmatureKinematics {
         }
     }
     pub fn solve(&mut self, pridiction: Option<KinematicsState>, armature_rest: &ArmatureRest,
-        motion_solvers: &mut [&mut Box<dyn LegMotionSolver>; 4], frame_current: usize) {
+        controller: &mut Box<dyn Controller>, pridictions: &mut Pridictions,
+        (targets,  results,                  planners,      frame_current):
+        (&Targets, &Vec<ArmatureKinematics>, &mut Planners, usize)
+                    ) -> Result<(), ()> {
         match pridiction {
             Some(t) => { self.center = t; },
             None => { self.center.solve(); }
@@ -112,10 +138,12 @@ impl ArmatureKinematics {
         self.head.location = self.center.location + self.center_rotation * armature_rest.center_to_head;
         self.head.basis_matrix = self.center.basis_matrix;
 
-        self.legs[0].hoove = self.legs[0].leg_motion_info.calculate_motion(motion_solvers[0], frame_current);
-        self.legs[1].hoove = self.legs[1].leg_motion_info.calculate_motion(motion_solvers[1], frame_current);
-        self.legs[2].hoove = self.legs[2].leg_motion_info.calculate_motion(motion_solvers[2], frame_current);
-        self.legs[3].hoove = self.legs[3].leg_motion_info.calculate_motion(motion_solvers[3], frame_current);
+        // let motion_solvers = controller.motion_solvers();
+        self.legs[0].hoove = self.legs[0].leg_motion_info.calculate_motion(controller, pridictions, (targets, results, planners, frame_current))?;
+        self.legs[1].hoove = self.legs[1].leg_motion_info.calculate_motion(controller, pridictions, (targets, results, planners, frame_current))?;
+        self.legs[2].hoove = self.legs[2].leg_motion_info.calculate_motion(controller, pridictions, (targets, results, planners, frame_current))?;
+        self.legs[3].hoove = self.legs[3].leg_motion_info.calculate_motion(controller, pridictions, (targets, results, planners, frame_current))?;
+        Ok(())
     }
 }
 
