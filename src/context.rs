@@ -55,7 +55,7 @@ impl Context {
 
         match self.armature_dynamics.solve(
             &self.armature_kinematics, ID_solver, self.targets[self.frame_current].g_accel,
-            self.pridictions[0].center.effect_of_force()
+            self.pridictions[0].center.into()
         ) {
             Ok(_) => { self.match_pridiction = true; },
             Err(e) => {

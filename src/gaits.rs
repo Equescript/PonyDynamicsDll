@@ -1,11 +1,13 @@
-use crate::kinematics::KinematicsState;
 use crate::targets::Targets;
 use crate::utils::macros::{ImplCopy, IntEnum, ImplIndex};
 use crate::units::UsePhysicsUnits;
 UsePhysicsUnits!();
-use crate::predictor::{Planner, Pridictions};
+use crate::math;
+use crate::predictor::{Planner, Pridictions, Pridiction};
 use crate::armature::{Controller, ArmatureKinematics};
 use crate::armature::IDsolver;
+use crate::kinematics::{KinematicsState, ForwardKinematicsSolver};
+use crate::dynamics::EffectOfForce;
 
 IntEnum!{
     pub enum GaitType {
@@ -30,11 +32,11 @@ ImplCopy!{
     pub enum GaitsPridiction {
         Stance(StancePridiction),
         Walk(WalkPridiction),
-        // Trot(TrotPridiction),
-        // Gallop(GallopPridiction),
+        Trot(TrotPridiction),
+        Gallop(GallopPridiction),
         InitiateWalk(InitiateWalkPridiction),
-        // InitiateTrot(InitiateTrotPridiction),
-        // InitiateGallop(InitiateGallopPridiction),
+        InitiateTrot(InitiateTrotPridiction),
+        InitiateGallop(InitiateGallopPridiction),
         TerminateWalk(TerminateWalkPridiction),
         // TerminateTrot(TerminateTrotPridiction),
         // TerminateGallop(TerminateGallopPridiction),
@@ -131,8 +133,21 @@ pub struct InitiateWalkPlanner {
     accel_correction_factor: f64,
     angular_velocity_correction_factor: f64,
     angular_accel_correction_factor: f64,
+    next_planner: GaitType,
 }
 
+    /* fn velocity_correction(&mut self, location_offset: Location) -> Velocity;
+    fn accel_correction(&mut self, velocity_offset: Velocity) -> Accel;
+    fn angular_velocity_correction(&mut self, rotation: Angle) -> AngularVelocity;
+    fn angular_accel_correction(&mut self, angular_velocity_offset: AngularVelocity) -> AngularAccel;
+    fn accel(&mut self, location_offset: Location, velocity_offset: Velocity, target_accel: Accel) -> Accel {
+        let velocity_correction: Velocity = self.velocity_correction(location_offset);
+        self.accel_correction(velocity_correction + velocity_offset) + target_accel
+    }
+    fn angular_accel(&mut self, rotation: Angle, angular_velocity_offset: AngularVelocity, target_angular_accel: AngularAccel) -> AngularAccel {
+        let angular_velocity_correction: AngularVelocity = self.angular_velocity_correction(rotation);
+        self.angular_accel_correction(angular_velocity_correction + angular_velocity_offset) + target_angular_accel
+    } */
 /* impl Planner for InitiateWalkPlanner {
     fn velocity_correction(&mut self, location_offset: Location) -> Velocity {
         location_offset * self.velocity_correction_factor
@@ -147,8 +162,50 @@ pub struct InitiateWalkPlanner {
         angular_velocity_offset * self.angular_accel_correction_factor
     }
 } */
+impl Planner for InitiateWalkPlanner {
+    fn calculate(&mut self, targets: &Targets, results: &Vec<ArmatureKinematics>, pridictions: &mut Pridictions, frame_current: usize, future_offset: usize) -> Result<(), ()> {
+        let velocity_correction = |location_offset: Location| -> Velocity {
+            location_offset * self.velocity_correction_factor
+        };
+        let accel_correction = |velocity_offset: Velocity| -> Accel {
+            velocity_offset * self.accel_correction_factor
+        };
+        let angular_velocity_correction = |rotation: Angle| -> AngularVelocity {
+            rotation * self.angular_velocity_correction_factor
+        };
+        let angular_accel_correction = |angular_velocity_offset: AngularVelocity| -> AngularAccel {
+            angular_velocity_offset * self.angular_accel_correction_factor
+        };
+        let accel = |location_offset: Location, velocity_offset: Velocity, target_accel: Accel| -> Accel {
+            let velocity_correction: Velocity = velocity_correction(location_offset);
+            accel_correction(velocity_correction + velocity_offset) + target_accel
+        };
+        let angular_accel = |rotation: Angle, angular_velocity_offset: AngularVelocity, target_angular_accel: AngularAccel| -> AngularAccel {
+            let angular_velocity_correction: AngularVelocity = angular_velocity_correction(rotation);
+            angular_accel_correction(angular_velocity_correction + angular_velocity_offset) + target_angular_accel
+        };
 
-// impl Controller for InitiateWalk {
+        let p0 = &mut pridictions[future_offset - 1];
+        let t0 = &targets[frame_current + future_offset - 1];
+        let location_offset: Location = t0.center.location - p0.center.location;
+        let velocity_offset: Velocity = t0.center.velocity - p0.center.velocity;
+        p0.center.accel = accel(location_offset, velocity_offset, t0.center.accel);
+        // t0.center.basis_matrix = rotation_matrix * p0.center.basis_matrix
+        let rotation: Angle = math::angle_of_rotation_matrix(&(t0.center.basis_matrix * glm::inverse(&p0.center.basis_matrix)));
+        let angular_velocity_offset: AngularVelocity = t0.center.angular_velocity - p0.center.angular_velocity;
+        p0.center.angular_accel = angular_accel(rotation, angular_velocity_offset, t0.center.angular_accel);
+        pridictions[future_offset] = Pridiction {
+            center: ForwardKinematicsSolver(&p0.center),
+            gait_data: GaitsPridiction::InitiateWalk(InitiateWalkPridiction {  }),
+            planner_type: GaitType::InitiateWalk,
+        };
+        Ok(())
+    }
+    fn next(&self) -> GaitType {
+        self.next_planner
+    }
+}
+// impl Controller for InitiateWalkController {
 
 // }
 
@@ -178,9 +235,15 @@ pub struct WalkPlanner {
 
 // }
 
+ImplCopy!{
+    pub struct WalkPridiction {}
+}
+ImplCopy!{
+    pub struct InitiateWalkPridiction {}
+}
 
 macro_rules! GaitToDo {
-    ($name1:ident, $name2:ident) => {
+    ($name1:ident, $name2:ident, $name3:ident) => {
         pub struct $name1 {
 
         }
@@ -207,33 +270,23 @@ macro_rules! GaitToDo {
         // impl Controller for $name2 {
 
         // }
+        ImplCopy!{
+            pub struct $name3 {
+
+            }
+        }
     };
 }
 
-GaitToDo!(StancePlanner, StanceController);
-GaitToDo!(TrotPlanner, TrotController);
-GaitToDo!(GallopPlanner, GallopController);
-GaitToDo!(InitiateTrotPlanner, InitiateTrotController);
-GaitToDo!(InitiateGallopPlanner, InitiateGallopController);
-GaitToDo!(TerminateWalkPlanner, TerminateWalkController);
-GaitToDo!(TerminateTrotPlanner, TerminateTrotController);
-GaitToDo!(TerminateGallopPlanner, TerminateGallopController);
-GaitToDo!(WalkToTrotPlanner, WalkToTrotController);
-GaitToDo!(TrotToGallopPlanner, TrotToGallopController);
-GaitToDo!(GallopToTrotPlanner, GallopToTrotController);
-GaitToDo!(TrotToWalkPlanner, TrotToWalkController);
-
-ImplCopy!{ pub struct StancePridiction {} }
-ImplCopy!{ pub struct WalkPridiction {} }
-pub struct TrotPridiction {}
-pub struct GallopPridiction {}
-ImplCopy!{ pub struct InitiateWalkPridiction {} }
-pub struct InitiateTrotPridiction {}
-pub struct InitiateGallopPridiction {}
-ImplCopy!{ pub struct TerminateWalkPridiction {} }
-pub struct TerminateTrotPridiction {}
-pub struct TerminateGallopPridiction {}
-pub struct WalkToTrotPridiction {}
-pub struct TrotToGallopPridiction {}
-pub struct GallopToTrotPridiction {}
-pub struct TrotToWalkPridiction {}
+GaitToDo!(StancePlanner, StanceController, StancePridiction);
+GaitToDo!(TrotPlanner, TrotController, TrotPridiction);
+GaitToDo!(GallopPlanner, GallopController, GallopPridiction);
+GaitToDo!(InitiateTrotPlanner, InitiateTrotController, InitiateTrotPridiction);
+GaitToDo!(InitiateGallopPlanner, InitiateGallopController, InitiateGallopPridiction);
+GaitToDo!(TerminateWalkPlanner, TerminateWalkController, TerminateWalkPridiction);
+GaitToDo!(TerminateTrotPlanner, TerminateTrotController, TerminateTrotPridiction);
+GaitToDo!(TerminateGallopPlanner, TerminateGallopController, TerminateGallopPridiction);
+GaitToDo!(WalkToTrotPlanner, WalkToTrotController, WalkToTrotPridiction);
+GaitToDo!(TrotToGallopPlanner, TrotToGallopController, TrotToGallopPridiction);
+GaitToDo!(GallopToTrotPlanner, GallopToTrotController, GallopToTrotPridiction);
+GaitToDo!(TrotToWalkPlanner, TrotToWalkController, TrotToWalkPridiction);

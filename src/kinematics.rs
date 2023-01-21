@@ -92,9 +92,9 @@ impl KinematicsState {
             angular_accel: AngularAccel::zeros(),
         }
     }
-    pub fn effect_of_force(&self) -> EffectOfForce {
+    /* pub fn effect_of_force(&self) -> EffectOfForce {
         EffectOfForce { accel: self.accel, angular_accel: self.angular_accel }
-    }
+    } */
     pub fn solve(&mut self) {
         self.location = self.location + self.velocity;
         self.velocity = self.velocity + self.accel;
@@ -102,6 +102,12 @@ impl KinematicsState {
         self.basis_matrix = math::rotation_mat3(self.angular_velocity) * self.basis_matrix;
         self.angular_velocity = self.angular_velocity + self.angular_accel;
         self.angular_accel = AngularAccel::zeros()
+    }
+}
+
+impl std::convert::From<KinematicsState> for EffectOfForce {
+    fn from(k: KinematicsState) -> Self {
+        Self { accel: k.accel, angular_accel: k.angular_accel }
     }
 }
 
