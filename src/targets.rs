@@ -47,8 +47,11 @@ impl Targets {
     pub fn new() -> Self {
         Targets { data: Vec::new(), centripetal_force_factor: 0.0 }
     }
-    pub fn initialize(&mut self, size: usize) {
-        self.data = Vec::with_capacity(size + 10);
+    pub fn initialize(size: usize, centripetal_force_factor: f64) -> Self {
+        Self {
+            data: Vec::with_capacity(size + 10),
+            centripetal_force_factor,
+        }
     }
     pub fn len(&self) -> usize {
         self.data.len()

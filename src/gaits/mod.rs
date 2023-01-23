@@ -5,7 +5,7 @@ use crate::utils::macros::{ImplCopy, IntEnum, ImplIndex};
 use crate::units::UsePhysicsUnits;
 UsePhysicsUnits!();
 use crate::predictor::{Planner, Pridictions, Pridiction};
-use crate::armature::{Controller, ArmatureKinematics, LegMotionSolver};
+use crate::armature::{Controller, ArmatureKinematics};
 use crate::armature::IDsolver;
 use crate::kinematics::{Pose, KinematicsState, ForwardKinematicsSolver};
 use crate::dynamics::EffectOfForce;
@@ -96,19 +96,46 @@ impl GaitLegInfo {
 } */
 
 pub struct Planners {
-    data: [Box<dyn Planner>; 14],
+    data: [Box<dyn Planner>; 2],
+}
+
+impl Planners {
+    fn new() -> Self {
+        Self { data: [
+            Box::new(InitiateWalk::InitiateWalkPlanner::new()),
+            Box::new(Walk::WalkPlanner::new()),
+        ] }
+    }
 }
 
 ImplIndex!(Planners, Box<dyn Planner>);
 
 pub struct Controllers {
-    data: [Box<dyn Controller>; 14],
+    data: [Box<dyn Controller>; 2],
+}
+
+impl Controllers {
+    fn new() -> Self {
+        Self { data: [
+            Box::new(InitiateWalk::InitiateWalkController::new()),
+            Box::new(Walk::WalkController::new()),
+        ] }
+    }
 }
 
 ImplIndex!(Controllers, Box<dyn Controller>);
 
 pub struct IDsolvers {
-    data: [Box<dyn IDsolver>; 14],
+    data: [Box<dyn IDsolver>; 2],
+}
+
+impl IDsolvers {
+    fn new() -> Self {
+        Self { data: [
+            Box::new(InitiateWalk::InitiateWalkIDsolver{}),
+            Box::new(Walk::WalkIDsolver{}),
+        ] }
+    }
 }
 
 ImplIndex!(IDsolvers, Box<dyn IDsolver>);
@@ -123,14 +150,8 @@ pub struct GaitInfo {
 }
 
 impl GaitInfo {
-
-}
-
-struct StanceMotionSolver {}
-
-impl LegMotionSolver for StanceMotionSolver {
-    fn solve(&mut self, leg_info: &crate::armature::LegMotionInfo) -> Result<Pose, ()> {
-        Ok(leg_info.start_pose)
+    pub fn new() -> Self {
+        Self { gait_type: GaitType::Stance, planners: Planners::new(), controllers: Controllers::new(), IDsolvers: IDsolvers::new() }
     }
 }
 

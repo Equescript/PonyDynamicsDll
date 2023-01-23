@@ -1,17 +1,16 @@
-use crate::utils::macros::{ImplCopy, IntEnum, ImplIndex};
+use crate::utils::macros::{IntEnum, ImplIndex};
 use crate::units::UsePhysicsUnits;
 UsePhysicsUnits!();
 use crate::math::{self, Vec3};
 use crate::predictor::{Planner, Pridiction};
-use crate::armature::{LegType, LegMotionInfo, LegMotionSolver, Controller, UseControllerStructs, IDsolver, LegKinematics};
+use crate::armature::{LegType, LegMotionInfo, Controller, UseControllerStructs, IDsolver, LegKinematics};
 UseControllerStructs!();
 use crate::kinematics::{Pose, KinematicsState, ForwardKinematicsSolver};
 use super::GaitLegInfo;
-use super::{GaitType, GaitPridiction, StanceMotionSolver, Walk::{WalkLegStatus, WalkSwingMotionSolver}};
+use super::{GaitType, GaitPridiction, Walk::{WalkLegStatus}};
 
-ImplCopy!{
-    pub struct InitiateWalkPridiction {}
-}
+#[derive(Clone, Copy)]
+pub struct InitiateWalkPridiction {}
 
 pub struct InitiateWalkPlanner {
     velocity_correction_factor: f64,
@@ -19,6 +18,18 @@ pub struct InitiateWalkPlanner {
     angular_velocity_correction_factor: f64,
     angular_accel_correction_factor: f64,
     next_planner: GaitType,
+}
+
+impl InitiateWalkPlanner {
+    pub fn new() -> Self {
+        Self {
+            velocity_correction_factor: 0.0,
+            accel_correction_factor: 0.0,
+            angular_velocity_correction_factor: 0.0,
+            angular_accel_correction_factor: 0.0,
+            next_planner: GaitType::Stance
+        }
+    }
 }
 
 impl Planner for InitiateWalkPlanner {
@@ -80,6 +91,9 @@ pub struct InitiateWalkController {
 }
 
 impl InitiateWalkController {
+    pub fn new() -> Self {
+        Self { contact_percentage: 0.0, preferred_leg: LegType::Foreleg_L, initiate: true, legs_max_offset: [(0.0, 0.0, 0.0); 4] }
+    }
     fn hoove_offset(&self, leg_type: LegType, step_length: Length) -> Length {
         let (max, min, sum) = self.legs_max_offset[leg_type as usize];
         ((max - min) / 2.0) * (step_length / sum)
@@ -163,5 +177,15 @@ impl Controller for InitiateWalkController {
             } */
         }
         todo!()
+    }
+}
+
+pub struct InitiateWalkIDsolver {
+
+}
+
+impl IDsolver for InitiateWalkIDsolver {
+    fn solve(&self, armature_dynamics: &mut ArmatureDynamics, effect_of_force: EffectOfForce) -> Result<(), EffectOfForce> {
+        Ok(())
     }
 }

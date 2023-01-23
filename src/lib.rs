@@ -17,18 +17,18 @@ use utils::ffi::{vec3_from_ptr, mat3_from_ptr, load_legs_data};
 
 use crate::math::{Vec3, Mat3};
 
-static mut ContextPtr: Option<*mut Context> = None;
+static mut CONTEXT_PTR: Option<*mut Context> = None;
 
 #[inline]
 fn context() -> &'static Context {
     unsafe {
-        &*ContextPtr.unwrap()
+        &*CONTEXT_PTR.unwrap()
     }
 }
 #[inline]
 fn context_mut() -> &'static mut Context {
     unsafe {
-        &mut *ContextPtr.unwrap()
+        &mut *CONTEXT_PTR.unwrap()
     }
 }
 

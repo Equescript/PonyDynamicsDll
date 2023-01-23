@@ -16,6 +16,9 @@ pub struct Ground {
 }
 
 impl Ground {
+    pub fn initialize(normal: Vec3, base_point: Location, frictional_coeff: FrictionalCoeff) -> Self {
+        Self { normal, base_point, frictional_coeff }
+    }
     pub fn intersection(&self, o: Vec3, d: Vec3) -> Location {
         math::intersection(o, d, self.base_point, self.normal)
     }
@@ -25,6 +28,12 @@ pub struct Output {
     pub root: Mat4,
     pub head: Mat4,
     pub legs: [Mat4; 4],
+}
+
+impl Output {
+    pub fn new() -> Self {
+        Self { root: Mat4::zeros(), head: Mat4::zeros(), legs: [Mat4::zeros(); 4] }
+    }
 }
 
 pub struct Context {
@@ -43,6 +52,25 @@ pub struct Context {
 }
 
 impl Context {
+    fn initialize(size: usize, centripetal_force_factor: f64, tick: Time, ground_normal: Vec3, base_point: Location, frictional_coeff: FrictionalCoeff,
+        root: Pose, head: Pose, legs: [(Location, Pose); 4], center: Pose,
+        head_mass: Mass, head_rotational_inertia: RotationalInertia, center_mass: Mass, center_rotational_inertia: RotationalInertia
+    ) -> Self {
+        Self {
+            targets: Targets::initialize(size, centripetal_force_factor),
+            results: Vec::with_capacity(size + 10),
+            pridictions: Pridictions::new(),
+            match_pridiction: false,
+            tick: tick,
+            frame_current: 0,
+            ground: Ground::initialize(ground_normal, base_point, frictional_coeff),
+            armature_rest: ArmatureRest::initialize(root, head, legs, center),
+            armature_kinematics: ArmatureKinematics::new(), // uninitialized
+            armature_dynamics: ArmatureDynamics::initialize(head_mass, head_rotational_inertia, center_mass, center_rotational_inertia),
+            output: Output::new(), // uninitialized
+            gait_info: GaitInfo::new() // uninitialized
+        }
+    }
     fn calculate(&mut self, frame_current: usize) -> Result<(), ()> {
         self.frame_current = frame_current;
         self.gait_info.gait_type = self.pridictions[0].planner_type;
@@ -50,8 +78,7 @@ impl Context {
         let controller = &mut self.gait_info.controllers[self.gait_info.gait_type as usize];
 
         if self.match_pridiction {
-            let pridiction = self.pridictions[0].center;
-            self.armature_kinematics.solve(Some(pridiction), &self.armature_rest, controller, &self.ground, &mut self.pridictions,
+            self.armature_kinematics.solve(Some(self.pridictions[0].center), &self.armature_rest, controller, &self.ground, &mut self.pridictions,
                 (&self.targets, &self.results, &mut self.gait_info.planners, self.frame_current))?;
         } else {
             self.armature_kinematics.solve(None, &self.armature_rest, controller, &self.ground, &mut self.pridictions,

@@ -19,21 +19,10 @@ IntEnum!{
     }
 }
 
-impl LegType {
-    // pub fn others(leg_type: LegType) -> [LegType; 3] {}
-}
-
-/* impl std::cmp::PartialEq for LegType {
-    fn eq(&self, other: &Self) -> bool {
-        match self {
-
-        }
-    }
-} */
-
 macro_rules! UseControllerStructs {
     () => {
-        use crate::armature::{ArmatureKinematics, ArmatureRest};
+        use crate::armature::{ArmatureKinematics, ArmatureDynamics, ArmatureRest};
+        use crate::dynamics::EffectOfForce;
         use crate::predictor::Pridictions;
         use crate::gaits::Planners;
         use crate::targets::Targets;
@@ -52,11 +41,6 @@ pub trait Controller {
         (&Targets, &Vec<ArmatureKinematics>, &mut Planners, usize)) -> Result<(), ()> {
         Err(())
     }
-}
-
-pub trait LegMotionSolver {
-    // allow the leg_info to influence the solver
-    fn solve(&mut self, leg_info: &LegMotionInfo) -> Result<Pose, ()>;
 }
 
 #[derive(Clone, Copy)]
@@ -114,8 +98,8 @@ ImplCopy!{
 }
 
 impl LegKinematics {
-    pub fn new() -> Self {
-        Self { leg_type: LegType::Foreleg_L, leg_motion_info: LegMotionInfo::new(), hoove: Pose::new() }
+    pub fn new(leg_type: LegType) -> Self {
+        Self { leg_type, leg_motion_info: LegMotionInfo::new(), hoove: Pose::new() }
     }
 }
 
@@ -134,7 +118,12 @@ impl ArmatureKinematics {
         ArmatureKinematics {
             root: Pose::new(),
             head: KinematicsState::new(),
-            legs: [LegKinematics::new(); 4],
+            legs: [
+                LegKinematics::new(LegType::Foreleg_L),
+                LegKinematics::new(LegType::Foreleg_R),
+                LegKinematics::new(LegType::Backleg_L),
+                LegKinematics::new(LegType::Backleg_R),
+            ],
             center: KinematicsState::new(),
             center_rotation: Mat3::zeros()
         }
@@ -180,6 +169,12 @@ pub struct LegDynamics {
     pub joint_force: MomentOfForce,
 }
 
+impl LegDynamics {
+    pub fn new(leg_type: LegType) -> Self {
+        Self { leg_type, forces: Vec::new(), joint_force: MomentOfForce { force: Force::zeros(), arm: Location::zeros() } }
+    }
+}
+
 pub trait IDsolver {
     fn solve(&self, armature_dynamics: &mut ArmatureDynamics, effect_of_force: EffectOfForce) -> Result<(), EffectOfForce>;
 }
@@ -191,18 +186,23 @@ pub struct ArmatureDynamics {
 }
 
 impl ArmatureDynamics {
-    /* pub fn new() -> Self {
+    pub fn initialize(head_mass: Mass, head_rotational_inertia: RotationalInertia, center_mass: Mass, center_rotational_inertia: RotationalInertia) -> Self {
         Self {
-            head: DynamicsState::initialize(mass, rotational_inertia),
-            center: DynamicsState::initialize(mass, rotational_inertia),
-            legs: ()
+            head: DynamicsState::initialize(head_mass, head_rotational_inertia),
+            center: DynamicsState::initialize(center_mass, center_rotational_inertia),
+            legs: [
+                LegDynamics::new(LegType::Foreleg_L),
+                LegDynamics::new(LegType::Foreleg_R),
+                LegDynamics::new(LegType::Backleg_L),
+                LegDynamics::new(LegType::Backleg_R),
+            ],
         }
-    } */
+    }
     pub fn solve(&mut self, armature_kinematics: &ArmatureKinematics, ID_solver: &Box<dyn IDsolver>, g_accel: Accel, target_effect: EffectOfForce) -> Result<(), EffectOfForce> {
-        self.legs[0].joint_force.arm = armature_kinematics.legs[0].hoove.location - armature_kinematics.center.location;
-        self.legs[1].joint_force.arm = armature_kinematics.legs[1].hoove.location - armature_kinematics.center.location;
-        self.legs[2].joint_force.arm = armature_kinematics.legs[2].hoove.location - armature_kinematics.center.location;
-        self.legs[3].joint_force.arm = armature_kinematics.legs[3].hoove.location - armature_kinematics.center.location;
+        self.legs[0].joint_force.arm = armature_kinematics.leg_force_arm(LegType::Foreleg_L);
+        self.legs[1].joint_force.arm = armature_kinematics.leg_force_arm(LegType::Foreleg_R);
+        self.legs[2].joint_force.arm = armature_kinematics.leg_force_arm(LegType::Backleg_L);
+        self.legs[3].joint_force.arm = armature_kinematics.leg_force_arm(LegType::Backleg_R);
         // TODO: Head
         self.center.forces[0].force = g_accel * self.center.mass;
         let current_effect = ForwardDynamicsSolver(&self.center);
@@ -227,6 +227,18 @@ pub struct ArmatureRest {
 }
 
 impl ArmatureRest {
+    pub fn initialize(root: Pose, head: Pose, legs: [(Location, Pose); 4], center: Pose) -> Self {
+        Self { root, head, legs: [
+                LegRest { leg_type: LegType::Foreleg_L, root_location: legs[0].0, hoove: legs[0].1 },
+                LegRest { leg_type: LegType::Foreleg_R, root_location: legs[1].0, hoove: legs[1].1 },
+                LegRest { leg_type: LegType::Backleg_L, root_location: legs[2].0, hoove: legs[2].1 },
+                LegRest { leg_type: LegType::Backleg_R, root_location: legs[3].0, hoove: legs[3].1 },
+            ],
+            center,
+            center_to_head: head.location - center.location,
+            center_to_root: root.location - center.location
+        }
+    }
     pub fn leg_force_arm(&self, leg_type: LegType) -> Location {
         self.legs[leg_type as usize].hoove.location - self.center.location
     }

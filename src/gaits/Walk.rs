@@ -2,34 +2,82 @@ use crate::utils::macros::{ImplCopy, IntEnum, ImplIndex};
 use crate::units::UsePhysicsUnits;
 UsePhysicsUnits!();
 use crate::math::{self, Vec3, Mat3};
-use super::{GaitType, GaitLegInfo};
+use super::{GaitType, GaitLegInfo, GaitPridiction};
 use crate::predictor::{Planner, Pridiction};
-use crate::armature::{LegType, Controller, UseControllerStructs, IDsolver, LegKinematics, LegMotionInfo, LegMotionSolver};
+use crate::armature::{LegType, Controller, UseControllerStructs, IDsolver, LegKinematics, LegMotionInfo};
 use crate::kinematics::{Pose, KinematicsState, ForwardKinematicsSolver, Roatation, Transform};
 UseControllerStructs!();
+
+#[derive(Clone, Copy)]
+pub struct WalkPridiction {}
 
 pub struct WalkPlanner {
     velocity_correction_factor: f64,
     accel_correction_factor: f64,
     angular_velocity_correction_factor: f64,
     angular_accel_correction_factor: f64,
+    next_planner: GaitType,
 }
 
-/* impl Planner for WalkPlanner {
-    fn velocity_correction(&mut self, location_offset: Location) -> Velocity {
-        location_offset * self.velocity_correction_factor
+impl WalkPlanner {
+    pub fn new() -> Self {
+        Self {
+            velocity_correction_factor: 0.0,
+            accel_correction_factor: 0.0,
+            angular_velocity_correction_factor: 0.0,
+            angular_accel_correction_factor: 0.0,
+            next_planner: GaitType::Stance
+        }
     }
-    fn accel_correction(&mut self, velocity_offset: Velocity) -> Accel {
-        velocity_offset * self.accel_correction_factor
-    }
-    fn angular_velocity_correction(&mut self, rotation: Angle) -> AngularVelocity {
-        rotation * self.angular_velocity_correction_factor
-    }
-    fn angular_accel_correction(&mut self, angular_velocity_offset: AngularVelocity) -> AngularAccel {
-        angular_velocity_offset * self.angular_accel_correction_factor
+    pub fn initialize(velocity_correction_factor: f64, accel_correction_factor: f64, angular_velocity_correction_factor: f64, angular_accel_correction_factor: f64,) -> Self {
+        Self { velocity_correction_factor, accel_correction_factor, angular_velocity_correction_factor, angular_accel_correction_factor, next_planner: GaitType::Walk }
     }
 }
- */
+
+impl Planner for WalkPlanner {
+    fn calculate_next_of(&mut self, targets: &Targets, results: &Vec<ArmatureKinematics>, pridictions: &mut Pridictions, frame_current: usize, frame_offset: usize) -> Result<(), ()> {
+        let velocity_correction = |location_offset: Location| -> Velocity {
+            location_offset * self.velocity_correction_factor
+        };
+        let accel_correction = |velocity_offset: Velocity| -> Accel {
+            velocity_offset * self.accel_correction_factor
+        };
+        let angular_velocity_correction = |rotation: Angle| -> AngularVelocity {
+            rotation * self.angular_velocity_correction_factor
+        };
+        let angular_accel_correction = |angular_velocity_offset: AngularVelocity| -> AngularAccel {
+            angular_velocity_offset * self.angular_accel_correction_factor
+        };
+        let accel = |location_offset: Location, velocity_offset: Velocity, target_accel: Accel| -> Accel {
+            let velocity_correction: Velocity = velocity_correction(location_offset);
+            accel_correction(velocity_correction + velocity_offset) + target_accel
+        };
+        let angular_accel = |rotation: Angle, angular_velocity_offset: AngularVelocity, target_angular_accel: AngularAccel| -> AngularAccel {
+            let angular_velocity_correction: AngularVelocity = angular_velocity_correction(rotation);
+            angular_accel_correction(angular_velocity_correction + angular_velocity_offset) + target_angular_accel
+        };
+
+        let p0 = &mut pridictions[frame_current];
+        let t0 = &targets[frame_current + frame_current];
+        let location_offset: Location = t0.center.location - p0.center.location;
+        let velocity_offset: Velocity = t0.center.velocity - p0.center.velocity;
+        p0.center.accel = accel(location_offset, velocity_offset, t0.center.accel);
+        // t0.center.basis_matrix = rotation_matrix * p0.center.basis_matrix
+        let rotation: Angle = math::angle_of_rotation_matrix(&(t0.center.basis_matrix * glm::inverse(&p0.center.basis_matrix)));
+        let angular_velocity_offset: AngularVelocity = t0.center.angular_velocity - p0.center.angular_velocity;
+        p0.center.angular_accel = angular_accel(rotation, angular_velocity_offset, t0.center.angular_accel);
+        pridictions[frame_current + 1] = Pridiction {
+            center: ForwardKinematicsSolver(&p0.center),
+            gait_data: GaitPridiction::Walk(WalkPridiction {  }),
+            planner_type: GaitType::Walk,
+        };
+        Ok(())
+    }
+    fn next(&self) -> GaitType {
+        self.next_planner
+    }
+}
+
 
  IntEnum!{
     pub enum WalkLegStatus {
@@ -57,6 +105,17 @@ pub struct WalkController {
 }
 
 impl WalkController {
+    pub fn new() -> Self {
+        Self {
+            legs_max_height: [0.0; 4],
+            legs_max_offset: [(0.0, 0.0, 0.0); 4],
+            contact_percentage: 0.0,
+            stance_percentage: 0.0,
+            swing_percentage: 0.0,
+            period: 0.0,
+            pattern_recovery_factor: 0.0
+        }
+    }
     fn step_length(&self, velocity: f64) -> Length {
         velocity * self.period
     }
@@ -319,25 +378,12 @@ impl Controller for WalkController {
     }
 }
 
-pub struct WalkSwingMotionSolver {
-    upword_vec: Vec3,
-    max_height: f64,
+pub struct WalkIDsolver {
+
 }
 
-impl LegMotionSolver for WalkSwingMotionSolver {
-    fn solve(&mut self, leg_info: &LegMotionInfo) -> Result<Pose, ()> {
-        match leg_info.transform.rotation {
-            Roatation::Angle(a) => {
-                Ok(Pose::transform(&leg_info.start_pose, &Transform {
-                    location: leg_info.transform.location * leg_info.factor + self.upword_vec * (self.max_height * math::parabola(leg_info.factor)),
-                    rotation: Roatation::Angle(a * leg_info.factor),
-                }))
-            },
-            Roatation::Matrix(_) => Err(())
-        }
+impl IDsolver for WalkIDsolver {
+    fn solve(&self, armature_dynamics: &mut ArmatureDynamics, effect_of_force: EffectOfForce) -> Result<(), EffectOfForce> {
+        Ok(())
     }
-}
-
-ImplCopy!{
-    pub struct WalkPridiction {}
 }
