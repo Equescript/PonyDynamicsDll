@@ -147,46 +147,50 @@ impl WalkController {
                 Ok(leg_info.start_pose)
             },
             WalkLegStatus::InitialSwing => {
-                let other_legs = others(leg_type);
-                let mut leg_phases = [
-                    phase_of(&armature.legs[other_legs[0] as usize].leg_motion_info)?,
-                    phase_of(&armature.legs[other_legs[1] as usize].leg_motion_info)?,
-                    phase_of(&armature.legs[other_legs[2] as usize].leg_motion_info)?,
-                ];
-                loop {
-                    if leg_phases[1] > leg_phases[0] {
-                        leg_phases[1] = leg_phases[1] - 1.0;
-                    } else {
-                        break;
-                    }
-                }
-                loop {
-                    if leg_phases[2] > leg_phases[1] {
-                        leg_phases[2] = leg_phases[2] - 1.0;
-                    } else {
-                        break;
-                    }
-                }
-                // y = -0.25x + a   (-0.25x + a - y)^2 = (-0.25x - y)^2 + 2(-0.25x - y)a + a^2 => 2(-0.25x - y) + 2a
-                // variance = (-0.25 + a - leg_phases[0])^2 + (-0.5 + a - leg_phases[1])^2 + (-0.75 + a - leg_phases[2])^2
-                // d(variance) = 2( (-0.25 - leg_phases[0]) + (-0.5 - leg_phases[1]) + (-0.75 - leg_phases[2]) ) + 6a = 0
-                //             => a = -( (-0.25 - leg_phases[0]) + (-0.5 - leg_phases[1]) + (-0.75 - leg_phases[2]) ) / 3
-                let mut a = (leg_phases[0] + leg_phases[1] + leg_phases[2] + 1.5) / 3.0;
-                let target_phase = loop {
-                    if a < 0.0 {
-                        a = a + 1.0;
-                    } else {
-                        if a < 1.0 {
-                            break a;
+                let get_target_phase = || -> Result<f64, ()> {
+                    let other_legs = others(leg_type);
+                    let mut leg_phases = [
+                        phase_of(&armature.legs[other_legs[0] as usize].leg_motion_info)?,
+                        phase_of(&armature.legs[other_legs[1] as usize].leg_motion_info)?,
+                        phase_of(&armature.legs[other_legs[2] as usize].leg_motion_info)?,
+                    ];
+                    loop {
+                        if leg_phases[1] > leg_phases[0] {
+                            leg_phases[1] = leg_phases[1] - 1.0;
                         } else {
-                            a = a - 1.0;
+                            break;
                         }
                     }
+                    loop {
+                        if leg_phases[2] > leg_phases[1] {
+                            leg_phases[2] = leg_phases[2] - 1.0;
+                        } else {
+                            break;
+                        }
+                    }
+                    // y = -0.25x + a   (-0.25x + a - y)^2 = (-0.25x - y)^2 + 2(-0.25x - y)a + a^2 => 2(-0.25x - y) + 2a
+                    // variance = (-0.25 + a - leg_phases[0])^2 + (-0.5 + a - leg_phases[1])^2 + (-0.75 + a - leg_phases[2])^2
+                    // d(variance) = 2( (-0.25 - leg_phases[0]) + (-0.5 - leg_phases[1]) + (-0.75 - leg_phases[2]) ) + 6a = 0
+                    //             => a = -( (-0.25 - leg_phases[0]) + (-0.5 - leg_phases[1]) + (-0.75 - leg_phases[2]) ) / 3
+                    let mut a = (leg_phases[0] + leg_phases[1] + leg_phases[2] + 1.5) / 3.0;
+                    Ok(loop {
+                        if a < 0.0 {
+                            a = a + 1.0;
+                        } else {
+                            if a < 1.0 {
+                                break a;
+                            } else {
+                                a = a - 1.0;
+                            }
+                        }
+                    })
                 };
+                let target_phase = get_target_phase()?;
                 let leg_info = &mut armature.legs[leg_type as usize].leg_motion_info;
                 // let leg_info = &mut armature.legs[leg_type as usize].leg_motion_info;
                 let current_phase = phase_of(&leg_info)?; // 0
                 let difference = phase_difference(current_phase, target_phase);
+
                 leg_info.gait_data = GaitLegInfo::Walk(WalkLegInfo { leg_status: WalkLegStatus::Swing });
                 leg_info.start_time = frame_current;
                 leg_info.factor = 0.0;
@@ -241,11 +245,54 @@ impl WalkController {
                 self.solve_swing(leg_info, Vec3::new(armature.center.basis_matrix.m11, armature.center.basis_matrix.m12, armature.center.basis_matrix.m13))
             }
             WalkLegStatus::Contact => {
+                let get_target_phase = || -> Result<f64, ()> {
+                    let other_legs = others(leg_type);
+                    let mut leg_phases = [
+                        phase_of(&armature.legs[other_legs[0] as usize].leg_motion_info)?,
+                        phase_of(&armature.legs[other_legs[1] as usize].leg_motion_info)?,
+                        phase_of(&armature.legs[other_legs[2] as usize].leg_motion_info)?,
+                    ];
+                    loop {
+                        if leg_phases[1] > leg_phases[0] {
+                            leg_phases[1] = leg_phases[1] - 1.0;
+                        } else {
+                            break;
+                        }
+                    }
+                    loop {
+                        if leg_phases[2] > leg_phases[1] {
+                            leg_phases[2] = leg_phases[2] - 1.0;
+                        } else {
+                            break;
+                        }
+                    }
+                    // y = -0.25x + a   (-0.25x + a - y)^2 = (-0.25x - y)^2 + 2(-0.25x - y)a + a^2 => 2(-0.25x - y) + 2a
+                    // variance = (-0.25 + a - leg_phases[0])^2 + (-0.5 + a - leg_phases[1])^2 + (-0.75 + a - leg_phases[2])^2
+                    // d(variance) = 2( (-0.25 - leg_phases[0]) + (-0.5 - leg_phases[1]) + (-0.75 - leg_phases[2]) ) + 6a = 0
+                    //             => a = -( (-0.25 - leg_phases[0]) + (-0.5 - leg_phases[1]) + (-0.75 - leg_phases[2]) ) / 3
+                    let mut a = (leg_phases[0] + leg_phases[1] + leg_phases[2] + 1.5) / 3.0;
+                    Ok(loop {
+                        if a < 0.0 {
+                            a = a + 1.0;
+                        } else {
+                            if a < 1.0 {
+                                break a;
+                            } else {
+                                a = a - 1.0;
+                            }
+                        }
+                    })
+                };
+                let target_phase = get_target_phase()?;
                 let leg_info = &mut armature.legs[leg_type as usize].leg_motion_info;
+                // let leg_info = &mut armature.legs[leg_type as usize].leg_motion_info;
+                let current_phase = phase_of(&leg_info)?; // 0.5(?)
+                let difference = phase_difference(current_phase, target_phase);
+
                 leg_info.gait_data = GaitLegInfo::Walk(WalkLegInfo { leg_status: WalkLegStatus::Stance });
                 leg_info.start_time = frame_current;
                 leg_info.factor = 0.0;
-                leg_info.time_length = self.stance_time();
+                leg_info.time_length = (self.stance_time() as i64 + (difference * self.period * self.pattern_recovery_factor).round() as i64) as usize;
                 leg_info.end_time = leg_info.start_time + leg_info.end_time;
                 leg_info.start_pose = leg_info.target_pose;
                 Ok(leg_info.target_pose)
@@ -271,8 +318,6 @@ impl Controller for WalkController {
         Ok(())
     }
 }
-
-
 
 pub struct WalkSwingMotionSolver {
     upword_vec: Vec3,
