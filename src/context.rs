@@ -1,13 +1,25 @@
 use crate::units::UsePhysicsUnits;
 UsePhysicsUnits!();
 use crate::math;
-use crate::math::{Mat3, Mat4};
+use crate::math::{Vec3, Mat3, Mat4};
 use crate::targets::Targets;
 use crate::predictor::Pridictions;
 use crate::kinematics::{Pose, KinematicsState};
 use crate::dynamics::EffectOfForce;
 use crate::armature::{ArmatureKinematics, ArmatureDynamics, ArmatureRest};
 use crate::gaits::GaitInfo;
+
+pub struct Ground {
+    pub normal: Vec3, // normalized
+    pub base_point: Location, // one of the point on the plane
+    pub frictional_coeff: FrictionalCoeff,
+}
+
+impl Ground {
+    pub fn intersection(&self, o: Vec3, d: Vec3) -> Location {
+        math::intersection(o, d, self.base_point, self.normal)
+    }
+}
 
 pub struct Output {
     pub root: Mat4,
@@ -22,6 +34,7 @@ pub struct Context {
     pub match_pridiction: bool,
     pub tick: Time, // s/f
     pub frame_current: usize,
+    pub ground: Ground,
     pub armature_rest: ArmatureRest, // const
     pub armature_kinematics: ArmatureKinematics,
     pub armature_dynamics: ArmatureDynamics,
@@ -38,10 +51,10 @@ impl Context {
 
         if self.match_pridiction {
             let pridiction = self.pridictions[0].center;
-            self.armature_kinematics.solve(Some(pridiction), &self.armature_rest, controller, &mut self.pridictions,
+            self.armature_kinematics.solve(Some(pridiction), &self.armature_rest, controller, &self.ground, &mut self.pridictions,
                 (&self.targets, &self.results, &mut self.gait_info.planners, self.frame_current))?;
         } else {
-            self.armature_kinematics.solve(None, &self.armature_rest, controller, &mut self.pridictions,
+            self.armature_kinematics.solve(None, &self.armature_rest, controller, &self.ground, &mut self.pridictions,
                 (&self.targets, &self.results, &mut self.gait_info.planners, self.frame_current))?;
             self.pridictions.refresh(self.armature_kinematics.center, (&self.targets, &self.results, &mut self.gait_info.planners, self.frame_current))?;
             // self.pridictions[0] is ready

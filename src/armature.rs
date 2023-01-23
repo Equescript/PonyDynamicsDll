@@ -7,6 +7,7 @@ use crate::dynamics::{EffectOfForce, MomentOfForce, DynamicsState, ForwardDynami
 use crate::gaits::{GaitType, GaitLegInfo, Planners};
 use crate::predictor::{Pridictions};
 use crate::targets::Targets;
+use crate::context::Ground;
 
 IntEnum!{
     #[derive(PartialEq, Eq)]
@@ -18,6 +19,10 @@ IntEnum!{
     }
 }
 
+impl LegType {
+    // pub fn others(leg_type: LegType) -> [LegType; 3] {}
+}
+
 /* impl std::cmp::PartialEq for LegType {
     fn eq(&self, other: &Self) -> bool {
         match self {
@@ -26,15 +31,27 @@ IntEnum!{
     }
 } */
 
+macro_rules! UseControllerStructs {
+    () => {
+        use crate::armature::{ArmatureKinematics, ArmatureRest};
+        use crate::predictor::Pridictions;
+        use crate::gaits::Planners;
+        use crate::targets::Targets;
+        use crate::context::Ground;
+    };
+}
+
+pub(crate) use UseControllerStructs;
+
 pub trait Controller {
     // fn period(&self) -> usize;
     // fn calculate_motion(&self, leg_info: LegMotionInfo) -> Location;
     // fn motion_solvers(&mut self) -> &mut [&mut Box<dyn LegMotionSolver>; 4];
-    fn solve_leg(&mut self, leg_info: &mut LegMotionInfo, pridictions: &mut Pridictions,
+    fn solve_legs(&mut self, armature: &mut ArmatureKinematics, armature_rest: &ArmatureRest, ground: &Ground, pridictions: &mut Pridictions,
         (targets,  results,                  planners,      frame_current):
-        (&Targets, &Vec<ArmatureKinematics>, &mut Planners, usize)) -> Result<Pose, ()> {
-            Err(())
-        }
+        (&Targets, &Vec<ArmatureKinematics>, &mut Planners, usize)) -> Result<(), ()> {
+        Err(())
+    }
 }
 
 pub trait LegMotionSolver {
@@ -44,10 +61,10 @@ pub trait LegMotionSolver {
 
 #[derive(Clone, Copy)]
 pub struct LegMotionInfo {
-    pub gait_data: GaitLegInfo,
     pub leg_type: LegType,
+    pub gait_data: GaitLegInfo,
     // leg_status: LegStatus,
-    pub is_stance: bool,
+    // pub is_stance: bool,
     pub start_time: usize,
     pub end_time: usize,
     pub time_length: usize,
@@ -61,9 +78,9 @@ pub struct LegMotionInfo {
 impl LegMotionInfo {
     pub fn new() -> Self {
         Self {
-            gait_data: GaitLegInfo::new(),
             leg_type: LegType::Foreleg_L,
-            is_stance: true,
+            gait_data: GaitLegInfo::new(),
+            // is_stance: true,
             start_time: 0,
             end_time: 0,
             time_length: 0,
@@ -73,7 +90,10 @@ impl LegMotionInfo {
             factor: 0.0
         }
     }
-    fn calculate_motion(&mut self, controller: &mut Box<dyn Controller>,/* motion_solver: &mut Box<dyn LegMotionSolver>, */ pridictions: &mut Pridictions,
+    pub fn set_factor(&mut self, frame_current: usize) {
+        self.factor = (frame_current - self.start_time) as f64 / self.time_length as f64;
+    }
+    /* fn calculate_motion(&mut self, controller: &mut Box<dyn Controller>,/* motion_solver: &mut Box<dyn LegMotionSolver>, */ pridictions: &mut Pridictions,
         (targets,  results,                  planners,      frame_current):
         (&Targets, &Vec<ArmatureKinematics>, &mut Planners, usize)) -> Result<Pose, ()> {
         self.factor = (frame_current - self.start_time) as f64 / self.time_length as f64;
@@ -83,7 +103,7 @@ impl LegMotionInfo {
             // motion_solver.solve(self)
         // }
         controller.solve_leg(self, pridictions, (targets, results, planners, frame_current))
-    }
+    } */
 }
 ImplCopy!{
     pub struct LegKinematics {
@@ -120,7 +140,7 @@ impl ArmatureKinematics {
         }
     }
     pub fn solve(&mut self, pridiction: Option<KinematicsState>, armature_rest: &ArmatureRest,
-        controller: &mut Box<dyn Controller>, pridictions: &mut Pridictions,
+        controller: &mut Box<dyn Controller>, ground: &Ground, pridictions: &mut Pridictions,
         (targets,  results,                  planners,      frame_current):
         (&Targets, &Vec<ArmatureKinematics>, &mut Planners, usize)
                     ) -> Result<(), ()> {
@@ -138,12 +158,19 @@ impl ArmatureKinematics {
         self.head.location = self.center.location + self.center_rotation * armature_rest.center_to_head;
         self.head.basis_matrix = self.center.basis_matrix;
 
-        // let motion_solvers = controller.motion_solvers();
-        self.legs[0].hoove = self.legs[0].leg_motion_info.calculate_motion(controller, pridictions, (targets, results, planners, frame_current))?;
-        self.legs[1].hoove = self.legs[1].leg_motion_info.calculate_motion(controller, pridictions, (targets, results, planners, frame_current))?;
-        self.legs[2].hoove = self.legs[2].leg_motion_info.calculate_motion(controller, pridictions, (targets, results, planners, frame_current))?;
-        self.legs[3].hoove = self.legs[3].leg_motion_info.calculate_motion(controller, pridictions, (targets, results, planners, frame_current))?;
+        controller.solve_legs(self, armature_rest, ground, pridictions, (targets, results, planners, frame_current))?;
         Ok(())
+    }
+    pub fn leg_force_arm(&self, leg_type: LegType) -> Location {
+        self.legs[leg_type as usize].hoove.location - self.center.location
+    }
+    pub fn leg_force_arms(&self) -> [Location; 4] {
+        [
+            self.legs[0].hoove.location - self.center.location,
+            self.legs[1].hoove.location - self.center.location,
+            self.legs[2].hoove.location - self.center.location,
+            self.legs[3].hoove.location - self.center.location,
+        ]
     }
 }
 
@@ -197,4 +224,10 @@ pub struct ArmatureRest {
     pub center: Pose,
     pub center_to_head: Location,
     pub center_to_root: Location,
+}
+
+impl ArmatureRest {
+    pub fn leg_force_arm(&self, leg_type: LegType) -> Location {
+        self.legs[leg_type as usize].hoove.location - self.center.location
+    }
 }

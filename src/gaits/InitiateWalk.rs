@@ -1,13 +1,13 @@
 use crate::utils::macros::{ImplCopy, IntEnum, ImplIndex};
-use crate::targets::Targets;
 use crate::units::UsePhysicsUnits;
 UsePhysicsUnits!();
-use crate::math;
-use crate::predictor::{Planner, Pridictions, Pridiction};
-use crate::armature::{LegType, LegMotionInfo, LegMotionSolver, Controller, IDsolver, ArmatureKinematics};
+use crate::math::{self, Vec3};
+use crate::predictor::{Planner, Pridiction};
+use crate::armature::{LegType, LegMotionInfo, LegMotionSolver, Controller, UseControllerStructs, IDsolver, LegKinematics};
+UseControllerStructs!();
 use crate::kinematics::{Pose, KinematicsState, ForwardKinematicsSolver};
 use super::GaitLegInfo;
-use super::{GaitType, GaitPridiction, StanceMotionSolver, Walk::{WalkLegStatus, WalkSwingMotionSolver}, Planners};
+use super::{GaitType, GaitPridiction, StanceMotionSolver, Walk::{WalkLegStatus, WalkSwingMotionSolver}};
 
 ImplCopy!{
     pub struct InitiateWalkPridiction {}
@@ -70,18 +70,26 @@ pub struct InitiateWalkLegInfo {
     pub leg_status: WalkLegStatus,
 }
 
+#[derive(Clone, Copy)]
 pub struct InitiateWalkController {
+    pub contact_percentage: f64, // walk步态两脚同时触地时间在周期中的占比
     pub preferred_leg: LegType, // const
     pub initiate: bool,
-    pub max_forward: f64,
-    pub max_backward: f64,
+    pub legs_max_offset: [(Length, Length, Length); 4], // forward, backward, max_length
     // pub legs: [(WalkLegStatus); 4],
 }
 
+impl InitiateWalkController {
+    fn hoove_offset(&self, leg_type: LegType, step_length: Length) -> Length {
+        let (max, min, sum) = self.legs_max_offset[leg_type as usize];
+        ((max - min) / 2.0) * (step_length / sum)
+    }
+}
+
 impl Controller for InitiateWalkController {
-    fn solve_leg(&mut self, leg_info: &mut LegMotionInfo, pridictions: &mut Pridictions,
+    fn solve_legs(&mut self, armature: &mut ArmatureKinematics, armature_rest: &ArmatureRest, ground: &Ground, pridictions: &mut Pridictions,
         (targets,  results,                  planners,      frame_current):
-        (&Targets, &Vec<ArmatureKinematics>, &mut Planners, usize)) -> Result<Pose, ()> {
+        (&Targets, &Vec<ArmatureKinematics>, &mut Planners, usize)) -> Result<(), ()> {
         if self.initiate {
             let init_sequence = match self.preferred_leg {
                 LegType::Foreleg_L => {
@@ -94,7 +102,56 @@ impl Controller for InitiateWalkController {
                     [LegType::Foreleg_R, LegType::Backleg_L, LegType::Foreleg_L, LegType::Backleg_R]
                 }
             };
-            if leg_info.leg_type == init_sequence[0] {
+            // armature.legs[init_sequence[3] as usize].leg_motion_info.gait_data
+            let max_distance = self.legs_max_offset[init_sequence[3] as usize].1;
+            let mut distance = 0.0;
+            let mut next_distance = 0.0;
+            let mut index = 0;
+            let mut next_index = 0;
+            for i in 1.. {
+                let p = pridictions.get_pridiction(i, (targets,  results,                  planners,      frame_current))?;
+                distance = next_distance;
+                next_distance = distance + p.center.velocity.magnitude();
+                if distance > max_distance {
+                    index = i - 1;
+                    next_index = i;
+                    break;
+                }
+            }
+            macro_rules! get_projection_vec {
+                ($i:expr) => {
+                    targets[$i].g_accel - pridictions[$i].center.accel
+                };
+            }
+            let init_length = next_index - frame_current;
+            let projection_vecs: [Vec3; 2] = [get_projection_vec!(index), get_projection_vec!(next_index)];
+            // v = a1*v1 + a2*v2 + a3*v3
+            // v = [v1, v2, v3] * [a1, a2, a3]
+            armature.legs[init_sequence[0] as usize].leg_motion_info.gait_data = GaitLegInfo::InitiateWalk(InitiateWalkLegInfo { leg_status: WalkLegStatus::InitialSwing });
+            armature.legs[init_sequence[0] as usize].leg_motion_info.start_pose = armature.legs[init_sequence[0] as usize].hoove;
+            armature.legs[init_sequence[0] as usize].leg_motion_info.target_pose = armature.legs[init_sequence[0] as usize].hoove;
+            armature.legs[init_sequence[1] as usize].leg_motion_info.gait_data = GaitLegInfo::InitiateWalk(InitiateWalkLegInfo { leg_status: WalkLegStatus::Stance });
+            let leg = &mut armature.legs[init_sequence[1] as usize];
+            leg.leg_motion_info.gait_data = GaitLegInfo::InitiateWalk(InitiateWalkLegInfo { leg_status: WalkLegStatus::Stance });
+            leg.leg_motion_info.start_pose = leg.hoove;
+            leg.leg_motion_info.start_time = frame_current;
+            leg.leg_motion_info.time_length = ((init_length as f64) / 3.0).round() as usize;
+            leg.leg_motion_info.end_time = frame_current + leg.leg_motion_info.time_length;
+
+            let leg = &mut armature.legs[init_sequence[2] as usize];
+            leg.leg_motion_info.gait_data = GaitLegInfo::InitiateWalk(InitiateWalkLegInfo { leg_status: WalkLegStatus::Stance });
+            leg.leg_motion_info.start_pose = leg.hoove;
+            leg.leg_motion_info.start_time = frame_current;
+            leg.leg_motion_info.time_length = (((init_length * 2) as f64) / 3.0).round() as usize;
+            leg.leg_motion_info.end_time = frame_current + leg.leg_motion_info.time_length;
+
+            let leg = &mut armature.legs[init_sequence[3] as usize];
+            leg.leg_motion_info.gait_data = GaitLegInfo::InitiateWalk(InitiateWalkLegInfo { leg_status: WalkLegStatus::Stance });
+            leg.leg_motion_info.start_pose = leg.hoove;
+            leg.leg_motion_info.start_time = frame_current;
+            leg.leg_motion_info.time_length = init_length;
+            leg.leg_motion_info.end_time = next_index;
+            /* if leg_info.leg_type == init_sequence[0] {
                 leg_info.gait_data = GaitLegInfo::InitiateWalk(InitiateWalkLegInfo { leg_status: WalkLegStatus::InitialSwing });
                 leg_info.start_time = frame_current;
             } else if leg_info.leg_type == init_sequence[1] {
@@ -103,7 +160,7 @@ impl Controller for InitiateWalkController {
                 leg_info.gait_data = GaitLegInfo::InitiateWalk(InitiateWalkLegInfo { leg_status: WalkLegStatus::Stance });
             } else if leg_info.leg_type == init_sequence[3] {
                 leg_info.gait_data = GaitLegInfo::InitiateWalk(InitiateWalkLegInfo { leg_status: WalkLegStatus::Stance });
-            }
+            } */
         }
         todo!()
     }
