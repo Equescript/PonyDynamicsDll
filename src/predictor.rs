@@ -8,7 +8,7 @@ use crate::units::UsePhysicsUnits;
 UsePhysicsUnits!();
 use crate::kinematics::{KinematicsState, ForwardKinematicsSolver};
 use crate::dynamics::EffectOfForce;
-use crate::gaits::{GaitPridiction, GaitType, Planners, StancePridiction};
+use crate::gaits::{GaitPridiction, GaitType, Planners};
 use crate::armature::ArmatureKinematics;
 
 // pub struct Pridiction {
@@ -32,7 +32,7 @@ pub struct Pridiction {
 
 impl Pridiction {
     pub fn new() -> Self {
-        Pridiction { center: KinematicsState::new(), gait_data: GaitPridiction::Stance(StancePridiction {}), planner_type: GaitType::Stance }
+        Pridiction { center: KinematicsState::new(), gait_data: GaitPridiction::new(), planner_type: GaitType::Stance }
     }
 }
 

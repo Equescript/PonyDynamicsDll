@@ -95,13 +95,13 @@ pub struct WalkLegInfo {
 
 #[derive(Clone, Copy)]
 pub struct WalkController {
-    pub legs_max_height: [Length; 4],
-    pub legs_max_offset: [(Length, Length, Length); 4], // forward, backward, max_length
-    pub contact_percentage: f64,
-    pub stance_percentage: f64,
-    pub swing_percentage: f64,
-    pub period: f64, // unit: frame
-    pub pattern_recovery_factor: f64,
+    legs_max_height: [Length; 4],
+    legs_max_offset: [(Length, Length, Length); 4], // forward, backward, max_length
+    contact_percentage: f64,
+    stance_percentage: f64,
+    swing_percentage: f64,
+    period: f64, // unit: frame
+    pattern_recovery_factor: f64,
 }
 
 impl WalkController {
@@ -114,6 +114,17 @@ impl WalkController {
             swing_percentage: 0.0,
             period: 0.0,
             pattern_recovery_factor: 0.0
+        }
+    }
+    pub fn initialize(legs_max_height: [Length; 4], legs_max_offset: [(Length, Length); 4], contact_percentage: f64, pattern_recovery_factor: f64) -> Self {
+        Self { legs_max_height, legs_max_offset: [
+                (legs_max_offset[0].0, legs_max_offset[0].1, legs_max_offset[0].0 + legs_max_offset[0].1),
+                (legs_max_offset[1].0, legs_max_offset[1].1, legs_max_offset[1].0 + legs_max_offset[1].1),
+                (legs_max_offset[2].0, legs_max_offset[2].1, legs_max_offset[2].0 + legs_max_offset[2].1),
+                (legs_max_offset[3].0, legs_max_offset[3].1, legs_max_offset[3].0 + legs_max_offset[3].1),
+            ], contact_percentage,
+            stance_percentage: 0.5 + contact_percentage / 2.0, swing_percentage: 0.5 - contact_percentage / 2.0,
+            period: 0.0, pattern_recovery_factor
         }
     }
     fn step_length(&self, velocity: f64) -> Length {

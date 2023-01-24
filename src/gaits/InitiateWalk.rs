@@ -30,6 +30,9 @@ impl InitiateWalkPlanner {
             next_planner: GaitType::Stance
         }
     }
+    pub fn initialize(velocity_correction_factor: f64, accel_correction_factor: f64, angular_velocity_correction_factor: f64, angular_accel_correction_factor: f64) -> Self {
+        Self { velocity_correction_factor, accel_correction_factor, angular_velocity_correction_factor, angular_accel_correction_factor, next_planner: GaitType::Walk }
+    }
 }
 
 impl Planner for InitiateWalkPlanner {
@@ -83,16 +86,19 @@ pub struct InitiateWalkLegInfo {
 
 #[derive(Clone, Copy)]
 pub struct InitiateWalkController {
-    pub contact_percentage: f64, // walk步态两脚同时触地时间在周期中的占比
-    pub preferred_leg: LegType, // const
-    pub initiate: bool,
-    pub legs_max_offset: [(Length, Length, Length); 4], // forward, backward, max_length
-    // pub legs: [(WalkLegStatus); 4],
+    contact_percentage: f64, // walk步态两脚同时触地时间在周期中的占比
+    preferred_leg: LegType, // const
+    initiate: bool,
+    legs_max_offset: [(Length, Length, Length); 4], // forward, backward, max_length
+    // legs: [(WalkLegStatus); 4],
 }
 
 impl InitiateWalkController {
     pub fn new() -> Self {
         Self { contact_percentage: 0.0, preferred_leg: LegType::Foreleg_L, initiate: true, legs_max_offset: [(0.0, 0.0, 0.0); 4] }
+    }
+    pub fn initialize() -> Self {
+        todo!()
     }
     fn hoove_offset(&self, leg_type: LegType, step_length: Length) -> Length {
         let (max, min, sum) = self.legs_max_offset[leg_type as usize];
@@ -180,6 +186,7 @@ impl Controller for InitiateWalkController {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct InitiateWalkIDsolver {
 
 }

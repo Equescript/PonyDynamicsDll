@@ -1,5 +1,6 @@
-pub mod Walk;
+pub mod Stance;
 pub mod InitiateWalk;
+pub mod Walk;
 use crate::targets::Targets;
 use crate::utils::macros::{ImplCopy, IntEnum, ImplIndex};
 use crate::units::UsePhysicsUnits;
@@ -31,7 +32,7 @@ IntEnum!{
 
 #[derive(Clone, Copy)]
 pub enum GaitPridiction {
-    Stance(StancePridiction),
+    Stance(Stance::StancePridiction),
     Walk(Walk::WalkPridiction),
     Trot(TrotPridiction),
     Gallop(GallopPridiction),
@@ -47,9 +48,15 @@ pub enum GaitPridiction {
     // TrotToWalk(TrotToWalkPridiction),
 }
 
+impl GaitPridiction {
+    pub fn new() -> Self {
+        Self::Stance(Stance::StancePridiction {  })
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum GaitLegInfo {
-    Stance(StanceLegInfo),
+    Stance(Stance::StanceLegInfo),
     Walk(Walk::WalkLegInfo),
     Trot(TrotLegInfo),
     Gallop(GallopLegInfo),
@@ -67,7 +74,7 @@ pub enum GaitLegInfo {
 
 impl GaitLegInfo {
     pub fn new() -> Self {
-        Self::Stance(StanceLegInfo {  })
+        Self::Stance(Stance::StanceLegInfo {  })
     }
 }
 
@@ -196,7 +203,7 @@ macro_rules! GaitToDo {
     };
 }
 
-GaitToDo!(StancePlanner, StanceController, StancePridiction, StanceLegInfo);
+// GaitToDo!(StancePlanner, StanceController, StancePridiction, StanceLegInfo);
 GaitToDo!(TrotPlanner, TrotController, TrotPridiction, TrotLegInfo);
 GaitToDo!(GallopPlanner, GallopController, GallopPridiction, GallopLegInfo);
 GaitToDo!(InitiateTrotPlanner, InitiateTrotController, InitiateTrotPridiction, InitiateTrotLegInfo);

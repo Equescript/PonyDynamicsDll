@@ -38,7 +38,8 @@ pub trait Controller {
     // fn motion_solvers(&mut self) -> &mut [&mut Box<dyn LegMotionSolver>; 4];
     fn solve_legs(&mut self, armature: &mut ArmatureKinematics, armature_rest: &ArmatureRest, ground: &Ground, pridictions: &mut Pridictions,
         (targets,  results,                  planners,      frame_current):
-        (&Targets, &Vec<ArmatureKinematics>, &mut Planners, usize)) -> Result<(), ()> {
+        (&Targets, &Vec<ArmatureKinematics>, &mut Planners, usize)
+    ) -> Result<(), ()> {
         Err(())
     }
 }
@@ -176,7 +177,9 @@ impl LegDynamics {
 }
 
 pub trait IDsolver {
-    fn solve(&self, armature_dynamics: &mut ArmatureDynamics, effect_of_force: EffectOfForce) -> Result<(), EffectOfForce>;
+    fn solve(&self, armature_dynamics: &mut ArmatureDynamics, effect_of_force: EffectOfForce) -> Result<(), EffectOfForce> {
+        Ok(())
+    }
 }
 
 pub struct ArmatureDynamics {
@@ -186,6 +189,14 @@ pub struct ArmatureDynamics {
 }
 
 impl ArmatureDynamics {
+    pub fn new() -> Self {
+        Self { head: DynamicsState::new(), center: DynamicsState::new(), legs: [
+            LegDynamics::new(LegType::Foreleg_L),
+            LegDynamics::new(LegType::Foreleg_R),
+            LegDynamics::new(LegType::Backleg_L),
+            LegDynamics::new(LegType::Backleg_R),
+        ], }
+    }
     pub fn initialize(head_mass: Mass, head_rotational_inertia: RotationalInertia, center_mass: Mass, center_rotational_inertia: RotationalInertia) -> Self {
         Self {
             head: DynamicsState::initialize(head_mass, head_rotational_inertia),
@@ -217,6 +228,12 @@ pub struct LegRest {
     pub hoove: Pose,
 }
 
+impl LegRest {
+    pub fn new(leg_type: LegType) -> Self {
+        Self { leg_type, root_location: Location::zeros(), hoove: Pose::new() }
+    }
+}
+
 pub struct ArmatureRest {
     pub root: Pose,
     pub head: Pose,
@@ -227,6 +244,15 @@ pub struct ArmatureRest {
 }
 
 impl ArmatureRest {
+    pub fn new() -> Self {
+        Self { root: Pose::new(), head: Pose::new(), legs: [
+            LegRest::new(LegType::Foreleg_L),
+            LegRest::new(LegType::Foreleg_R),
+            LegRest::new(LegType::Backleg_L),
+            LegRest::new(LegType::Backleg_R),
+            ], center: Pose::new(), center_to_head: Location::zeros(), center_to_root: Location::zeros()
+        }
+    }
     pub fn initialize(root: Pose, head: Pose, legs: [(Location, Pose); 4], center: Pose) -> Self {
         Self { root, head, legs: [
                 LegRest { leg_type: LegType::Foreleg_L, root_location: legs[0].0, hoove: legs[0].1 },

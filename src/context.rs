@@ -12,12 +12,15 @@ use crate::gaits::GaitInfo;
 pub struct Ground {
     pub normal: Vec3, // normalized
     pub base_point: Location, // one of the point on the plane
-    pub frictional_coeff: FrictionalCoeff,
+    pub frictional_factor: FrictionalCoeff,
 }
 
 impl Ground {
-    pub fn initialize(normal: Vec3, base_point: Location, frictional_coeff: FrictionalCoeff) -> Self {
-        Self { normal, base_point, frictional_coeff }
+    pub fn new() -> Self {
+        Self { normal: Vec3::zeros(), base_point: Location::zeros(), frictional_factor: 0.0 }
+    }
+    pub fn initialize(normal: Vec3, base_point: Location, frictional_factor: FrictionalCoeff) -> Self {
+        Self { normal, base_point, frictional_factor }
     }
     pub fn intersection(&self, o: Vec3, d: Vec3) -> Location {
         math::intersection(o, d, self.base_point, self.normal)
@@ -52,19 +55,59 @@ pub struct Context {
 }
 
 impl Context {
-    fn initialize(size: usize, centripetal_force_factor: f64, tick: Time, ground_normal: Vec3, base_point: Location, frictional_coeff: FrictionalCoeff,
-        root: Pose, head: Pose, legs: [(Location, Pose); 4], center: Pose,
+    pub fn new() -> Self {
+        Self { targets: Targets::new(), results: Vec::new(), pridictions: Pridictions::new(), match_pridiction: false, tick: 0.0,
+            frame_current: 0, ground: Ground::new(), armature_rest: ArmatureRest::new(), armature_kinematics: ArmatureKinematics::new(),
+            armature_dynamics: ArmatureDynamics::new(), output: Output::new(), gait_info: GaitInfo::new()
+        }
+    }
+    pub fn initialize_path_data(&mut self, targets_size: usize, centripetal_force_factor: f64, tick: Time, frame_current: usize,
+        ground_normal: Vec3, base_point: Location, frictional_factor: FrictionalCoeff
+    ) {
+        self.targets = Targets::initialize(targets_size, centripetal_force_factor);
+        self.tick = tick;
+        self.frame_current = frame_current;
+        self.ground = Ground::initialize(ground_normal, base_point, frictional_factor);
+    }
+    pub fn initialize_armature(&mut self, root_location: Location, root_basis_matrix: Mat3, head_location: Location, head_basis_matrix: Mat3, legs: [(Location, (Location, Mat3)); 4], center_location: Location, center_basis_matrix: Mat3,
+        head_mass: Mass, head_rotational_inertia: RotationalInertia, center_mass: Mass, center_rotational_inertia: RotationalInertia
+    ) {
+        self.armature_rest = ArmatureRest::initialize(
+            Pose { location: root_location, basis_matrix: root_basis_matrix },
+            Pose { location: head_location, basis_matrix: head_basis_matrix },
+            [
+                (legs[0].0, Pose { location: legs[0].1.0, basis_matrix: legs[0].1.1}),
+                (legs[1].0, Pose { location: legs[1].1.0, basis_matrix: legs[1].1.1}),
+                (legs[2].0, Pose { location: legs[2].1.0, basis_matrix: legs[2].1.1}),
+                (legs[3].0, Pose { location: legs[3].1.0, basis_matrix: legs[3].1.1}),
+            ],
+            Pose { location: center_location, basis_matrix: center_basis_matrix }
+        );
+        self.armature_dynamics = ArmatureDynamics::initialize(head_mass, head_rotational_inertia, center_mass, center_rotational_inertia);
+    }
+    pub fn initialize(targets_size: usize, centripetal_force_factor: f64, tick: Time, ground_normal: Vec3, base_point: Location, frictional_factor: FrictionalCoeff,
+        root_location: Location, root_basis_matrix: Mat3, head_location: Location, head_basis_matrix: Mat3, legs: [(Location, (Location, Mat3)); 4], center_location: Location, center_basis_matrix: Mat3,
         head_mass: Mass, head_rotational_inertia: RotationalInertia, center_mass: Mass, center_rotational_inertia: RotationalInertia
     ) -> Self {
         Self {
-            targets: Targets::initialize(size, centripetal_force_factor),
-            results: Vec::with_capacity(size + 10),
+            targets: Targets::initialize(targets_size, centripetal_force_factor),
+            results: Vec::with_capacity(targets_size + 10),
             pridictions: Pridictions::new(),
             match_pridiction: false,
             tick: tick,
             frame_current: 0,
-            ground: Ground::initialize(ground_normal, base_point, frictional_coeff),
-            armature_rest: ArmatureRest::initialize(root, head, legs, center),
+            ground: Ground::initialize(ground_normal, base_point, frictional_factor),
+            armature_rest: ArmatureRest::initialize(
+                Pose { location: root_location, basis_matrix: root_basis_matrix },
+                Pose { location: head_location, basis_matrix: head_basis_matrix },
+                [
+                    (legs[0].0, Pose { location: legs[0].1.0, basis_matrix: legs[0].1.1}),
+                    (legs[1].0, Pose { location: legs[1].1.0, basis_matrix: legs[1].1.1}),
+                    (legs[2].0, Pose { location: legs[2].1.0, basis_matrix: legs[2].1.1}),
+                    (legs[3].0, Pose { location: legs[3].1.0, basis_matrix: legs[3].1.1}),
+                ],
+                Pose { location: center_location, basis_matrix: center_basis_matrix }
+            ),
             armature_kinematics: ArmatureKinematics::new(), // uninitialized
             armature_dynamics: ArmatureDynamics::initialize(head_mass, head_rotational_inertia, center_mass, center_rotational_inertia),
             output: Output::new(), // uninitialized
