@@ -46,11 +46,12 @@ pub extern fn initialize_context() {
 }
 
 #[no_mangle]
-pub extern fn initialize_ground(targets_size: c_ulonglong, centripetal_force_factor: c_double, tick: c_double, frame_current: c_ulonglong,
+pub extern fn initialize_path_data(targets_size: c_ulonglong, centripetal_force_factor: c_double, tick: c_double, frame_current: c_ulonglong,
     ground_normal: *const c_double, base_point: *const c_double, frictional_factor: c_double
 ) {
     context_mut().initialize_path_data(targets_size as usize, centripetal_force_factor, tick, frame_current as usize,
-        vec3_from_ptr(ground_normal), vec3_from_ptr(base_point), frictional_factor);
+        vec3_from_ptr(ground_normal), vec3_from_ptr(base_point), frictional_factor
+    );
 }
 
 #[no_mangle]
@@ -76,9 +77,27 @@ pub extern fn initialize_armature(root_location: *const c_double, root_basis_mat
 }
 
 #[no_mangle]
-pub extern fn initialize_InitiateWalk() {
+pub extern fn initialize_InitiateWalk(velocity_correction_factor: c_double, accel_correction_factor: c_double,
+    angular_velocity_correction_factor: c_double, angular_accel_correction_factor: c_double, preferred_leg: c_uint,
+    FL_max_height: c_double, FL_max_forward: c_double, FL_max_backward: c_double,
+    FR_max_height: c_double, FR_max_forward: c_double, FR_max_backward: c_double,
+    BL_max_height: c_double, BL_max_forward: c_double, BL_max_backward: c_double,
+    BR_max_height: c_double, BR_max_forward: c_double, BR_max_backward: c_double, contact_percentage: c_double, pattern_recovery_factor: c_double
+) {
     let gait_info = &mut context_mut().gait_info;
-    gait_info.planners[GaitType::InitiateWalk as usize] = Box::new(gaits::InitiateWalk::InitiateWalkPlanner::new());
+    gait_info.planners[GaitType::InitiateWalk as usize] = Box::new(gaits::InitiateWalk::InitiateWalkPlanner::initialize(velocity_correction_factor, accel_correction_factor, angular_velocity_correction_factor, angular_accel_correction_factor));
+    gait_info.controllers[GaitType::InitiateWalk as usize] = Box::new(gaits::InitiateWalk::InitiateWalkController::initialize(
+        (preferred_leg as usize).try_into().unwrap(),
+        [ FL_max_height, FR_max_height, BL_max_height, BR_max_height],
+        [
+            (FL_max_forward, FL_max_backward),
+            (FR_max_forward, FR_max_backward),
+            (BL_max_forward, BL_max_backward),
+            (BR_max_forward, BR_max_backward),
+        ],
+        contact_percentage, pattern_recovery_factor
+    ));
+    gait_info.IDsolvers[GaitType::InitiateWalk as usize] = Box::new(gaits::InitiateWalk::InitiateWalkIDsolver {});
 }
 
 #[no_mangle]
@@ -109,6 +128,15 @@ pub extern fn set_target_by_frame(location: *const c_double, direction: *const c
     let context = context_mut();
     let centripetal_force_factor = context.targets.centripetal_force_factor;
     targets::set_target_by_frame(&mut context.targets, vec3_from_ptr(location), vec3_from_ptr(direction), vec3_from_ptr(gravity) / context.tick, frame as usize, centripetal_force_factor, context.armature_rest.center.location.z)
+}
+
+#[no_mangle]
+pub extern fn calculate() {
+    let context = context_mut();
+    let length = context.length;
+    for i in 0..length {
+        context.calculate(i);
+    }
 }
 
 #[no_mangle]

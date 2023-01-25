@@ -14,6 +14,12 @@ pub struct StancePridiction {}
 #[derive(Clone, Copy)]
 pub struct StancePlanner {}
 
+impl StancePlanner {
+    pub fn new() -> Self {
+        Self {  }
+    }
+}
+
 impl Planner for StancePlanner {
     fn calculate_next_of(&mut self, targets: &Targets, results: &Vec<ArmatureKinematics>, pridictions: &mut Pridictions, frame_current: usize, frame_offset: usize) -> Result<(), ()> {
         todo!()

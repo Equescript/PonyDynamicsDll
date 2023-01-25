@@ -43,6 +43,7 @@ pub struct Context {
     pub targets: Targets,
     pub results: Vec<ArmatureKinematics>,
     pub pridictions: Pridictions,
+    pub length: usize,
     pub match_pridiction: bool,
     pub tick: Time, // s/f
     pub frame_current: usize,
@@ -56,7 +57,7 @@ pub struct Context {
 
 impl Context {
     pub fn new() -> Self {
-        Self { targets: Targets::new(), results: Vec::new(), pridictions: Pridictions::new(), match_pridiction: false, tick: 0.0,
+        Self { targets: Targets::new(), results: Vec::new(), pridictions: Pridictions::new(), length: 0, match_pridiction: false, tick: 0.0,
             frame_current: 0, ground: Ground::new(), armature_rest: ArmatureRest::new(), armature_kinematics: ArmatureKinematics::new(),
             armature_dynamics: ArmatureDynamics::new(), output: Output::new(), gait_info: GaitInfo::new()
         }
@@ -64,6 +65,7 @@ impl Context {
     pub fn initialize_path_data(&mut self, targets_size: usize, centripetal_force_factor: f64, tick: Time, frame_current: usize,
         ground_normal: Vec3, base_point: Location, frictional_factor: FrictionalCoeff
     ) {
+        self.length = targets_size;
         self.targets = Targets::initialize(targets_size, centripetal_force_factor);
         self.tick = tick;
         self.frame_current = frame_current;
@@ -93,6 +95,7 @@ impl Context {
             targets: Targets::initialize(targets_size, centripetal_force_factor),
             results: Vec::with_capacity(targets_size + 10),
             pridictions: Pridictions::new(),
+            length: targets_size,
             match_pridiction: false,
             tick: tick,
             frame_current: 0,
@@ -114,7 +117,7 @@ impl Context {
             gait_info: GaitInfo::new() // uninitialized
         }
     }
-    fn calculate(&mut self, frame_current: usize) -> Result<(), ()> {
+    pub fn calculate(&mut self, frame_current: usize) -> Result<(), ()> {
         self.frame_current = frame_current;
         self.gait_info.gait_type = self.pridictions[0].planner_type;
 

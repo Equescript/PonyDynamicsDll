@@ -86,19 +86,34 @@ pub struct InitiateWalkLegInfo {
 
 #[derive(Clone, Copy)]
 pub struct InitiateWalkController {
-    contact_percentage: f64, // walk步态两脚同时触地时间在周期中的占比
     preferred_leg: LegType, // const
-    initiate: bool,
+    legs_max_height: [Length; 4],
     legs_max_offset: [(Length, Length, Length); 4], // forward, backward, max_length
+    contact_percentage: f64, // walk步态两脚同时触地时间在周期中的占比
+    stance_percentage: f64,
+    swing_percentage: f64,
+    period: f64,
+    pattern_recovery_factor: f64,
+    initiate: bool,
     // legs: [(WalkLegStatus); 4],
 }
 
 impl InitiateWalkController {
     pub fn new() -> Self {
-        Self { contact_percentage: 0.0, preferred_leg: LegType::Foreleg_L, initiate: true, legs_max_offset: [(0.0, 0.0, 0.0); 4] }
+        Self { preferred_leg: LegType::Foreleg_L,legs_max_height: [0.0; 4], legs_max_offset: [(0.0, 0.0, 0.0); 4], contact_percentage: 0.0, stance_percentage: 0.0,
+            swing_percentage: 0.0, period: 0.0, pattern_recovery_factor: 0.0, initiate: true
+        }
     }
-    pub fn initialize() -> Self {
-        todo!()
+    pub fn initialize(preferred_leg: LegType, legs_max_height: [Length; 4], legs_max_offset: [(Length, Length); 4], contact_percentage: f64, pattern_recovery_factor: f64) -> Self {
+        Self { preferred_leg, legs_max_height, legs_max_offset: [
+                (legs_max_offset[0].0, legs_max_offset[0].1, legs_max_offset[0].0 + legs_max_offset[0].1),
+                (legs_max_offset[1].0, legs_max_offset[1].1, legs_max_offset[1].0 + legs_max_offset[1].1),
+                (legs_max_offset[2].0, legs_max_offset[2].1, legs_max_offset[2].0 + legs_max_offset[2].1),
+                (legs_max_offset[3].0, legs_max_offset[3].1, legs_max_offset[3].0 + legs_max_offset[3].1),
+            ], contact_percentage,
+            stance_percentage: 0.5 + contact_percentage / 2.0, swing_percentage: 0.5 - contact_percentage / 2.0,
+            period: 0.0, pattern_recovery_factor, initiate: true
+        }
     }
     fn hoove_offset(&self, leg_type: LegType, step_length: Length) -> Length {
         let (max, min, sum) = self.legs_max_offset[leg_type as usize];
